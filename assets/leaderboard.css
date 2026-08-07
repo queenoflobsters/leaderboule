@@ -1,0 +1,87 @@
+.card {
+  width: 100%;
+  max-width: 30rem;
+  box-sizing: border-box;
+
+  display: grid;
+  position: relative;
+  overflow: hidden;
+  height: fit-content;
+  grid-template-columns: auto 1fr;
+  gap: 0.5rem;
+  padding: 1rem 1rem 1rem calc(1rem + 0.4rem);
+  border: 0.1rem gray solid;
+  border-radius: 0.6rem;
+  margin: 1.4rem auto;
+  background-color: #181818;
+  color: #bbb;
+  font-variant-numeric: tabular-nums;
+}
+
+.first::before,
+.second::before,
+.third::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 0.4rem;
+}
+
+.first {
+  border-color: goldenrod;
+}
+
+.second {
+  border-color: lightgray;
+}
+
+.third {
+  border-color: #5e2906;
+}
+
+.first::before {
+  background-color: goldenrod;
+}
+.second::before {
+  background-color: lightgray;
+}
+
+.third::before {
+  background-color: #5e2906;
+}
+
+.top-left {
+  grid-column: 1;
+  font-size: 1.3rem;
+  text-align: left;
+}
+
+.top-right {
+  font-size: 1.3rem;
+  font-weight: bold;
+  grid-column: 2;
+  text-align: right;
+  color: #0ecc08;
+  text-shadow: 0 0 0.5em color-mix(in srgb, currentColor 50%, transparent);
+}
+
+.bottom-left {
+  grid-column: 1;
+  text-align: left;
+}
+
+.bottom-right {
+  grid-column: 2;
+  text-align: right;
+  text-shadow: 0 0 0.5em color-mix(in srgb, currentColor 50%, transparent);
+  color: #fc5356;
+}
+
+.card-digits {
+  font-weight: bold;
+  color: goldenrod;
+  text-shadow: 0 0 0.5em color-mix(in srgb, currentColor 50%, transparent);
+  margin: 0.3rem;
+}

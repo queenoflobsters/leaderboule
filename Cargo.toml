@@ -1,0 +1,31 @@
+[package]
+name = "leaderboule"
+version = "0.1.0"
+authors = ["gabribribribri <fuelanemo149@gmail.com>"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+dioxus = { version = "0.7.1", features = ["router", "fullstack"] }
+reqwest = { version = "0.13.4", features  = ["json"] }
+serde = { version = "1.0.229", features = ["derive"]}
+surrealdb = {version = "3.2.4", features = ["protocol-ws"], optional = true}
+tokio = {version = "1.53.1", features = ["sync"], optional = true}
+
+
+[features]
+default = ["web", "server"]
+web = ["dioxus/web"]
+# desktop = ["dioxus/desktop"]
+# mobile = ["dioxus/mobile"]
+server = ["dioxus/server", "dep:surrealdb", "dep:tokio"]
+
+[profile.release]
+opt-level = "z" 
+lto = true       
+codegen-units = 1
+panic = "abort"  
+strip = true     
+
+# surreal start --user root --pass root --bind 127.0.0.1:8000 rocksdb:hotdog.db

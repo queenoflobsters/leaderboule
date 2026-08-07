@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  # Container 1: The Database Server
+  surrealdb:
+    image: surrealdb/surrealdb:v3.0.0
+    user: root
+    command: start --user root --pass root --bind 0.0.0.0:8000 rocksdb:/data/hotdog.db
+    ports:
+      - "8000:8000" # Exposes port 8000 so you can connect Surrealist anytime!
+    volumes:
+      - db_data:/data:z
+
+  # Container 2: Dioxus App
+  app:
+    build: .
+    environment:
+      - DATABASE_URL=surrealdb:8000
+      - DATABASE_USER=root
+      - DATABASE_PASS=root
+    ports:
+      - "8080:8080"
+    depends_on:
+      - surrealdb
+
+volumes:
+  db_data: # Persistent storage for SurrealDB
