@@ -10,7 +10,7 @@ pub async fn get_users_performances() -> Result<Vec<UserPerformance>> {
         games_won: 13,
     };
     let edward = UserPerformance {
-        name: "Edward".into(),
+        name: "Edward le sacro saint destructeur de chattes".into(),
         elo: 1000,
         games_played: 100,
         games_won: 100,

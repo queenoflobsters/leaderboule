@@ -1,8 +1,25 @@
-.card {
-  width: 100%;
-  max-width: 30rem;
-  box-sizing: border-box;
+.leaderboard-container {
+  width: fit-content;
+  max-width: 100%;
 
+  margin: 0 auto;
+
+  display: flex;
+  flex-direction: column;
+}
+
+.banner {
+  /* display: grid; */
+  /* grid-template-columns: auto 1fr 1fr; */
+  gap: 0.5rem;
+}
+
+.cards {
+  width: 30rem;
+  max-width: 100%;
+}
+
+.card {
   display: grid;
   position: relative;
   overflow: hidden;
@@ -10,12 +27,26 @@
   grid-template-columns: auto 1fr;
   gap: 0.5rem;
   padding: 1rem 1rem 1rem calc(1rem + 0.4rem);
-  border: 0.1rem gray solid;
-  border-radius: 0.6rem;
   margin: 1.4rem auto;
-  background-color: #181818;
+  background-color: #1c1c1c;
   color: #bbb;
   font-variant-numeric: tabular-nums;
+  /* border: 0.05rem gray solid; */
+  border-radius: 0.3rem;
+}
+
+.pending-messages {
+  display: flex;
+  justify-content: center;
+  margin-top: 5rem;
+  text-align: center;
+  font-size: 1.4rem;
+}
+
+.reload-button {
+  /* grid-column: 3; */
+  display: flex; /* I have no idea why that works */
+  background-color: #840000;
 }
 
 .first::before,
@@ -26,28 +57,24 @@
   top: 0;
   left: 0;
   bottom: 0;
-  width: 0.4rem;
+  width: 0.3rem;
 }
 
 .first {
   border-color: goldenrod;
 }
-
 .second {
   border-color: lightgray;
 }
-
 .third {
   border-color: #5e2906;
 }
-
 .first::before {
   background-color: goldenrod;
 }
 .second::before {
   background-color: lightgray;
 }
-
 .third::before {
   background-color: #5e2906;
 }
