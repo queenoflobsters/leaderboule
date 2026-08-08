@@ -1,27 +1,37 @@
-version: '3.8'
-
 services:
-  # Container 1: The Database Server
+  # Container 1: Surreal database
   surrealdb:
     image: surrealdb/surrealdb:v3.0.0
     user: root
-    command: start --user root --pass root --bind 0.0.0.0:8000 rocksdb:/data/hotdog.db
+    command: start --user root --pass root --bind 0.0.0.0:8000 rocksdb:/data/hotdog.db # REMOVE PASSWORDS
     ports:
-      - "8000:8000" # Exposes port 8000 so you can connect Surrealist anytime!
+      - "8000:8000" # For me to access the db anytime
     volumes:
       - db_data:/data:z
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/surreal", "is-ready"]
+      start_period: 2s
+      interval: 3s
+      timeout: 3s
+      retries: 5
+      
 
   # Container 2: Dioxus App
   app:
     build: .
+    init: true
     environment:
       - DATABASE_URL=surrealdb:8000
       - DATABASE_USER=root
       - DATABASE_PASS=root
     ports:
       - "8080:8080"
+    restart: unless-stopped
     depends_on:
-      - surrealdb
+      # surrealdb
+      surrealdb:
+        condition: service_healthy
 
 volumes:
-  db_data: # Persistent storage for SurrealDB
+  db_data:

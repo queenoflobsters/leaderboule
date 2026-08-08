@@ -1,0 +1,8 @@
+.git/
+.cargo/
+db_start.sh
+README.md
+/target
+/temp
+/dist
+# ADD LOCAL DATABASE

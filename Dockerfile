@@ -5,18 +5,19 @@
 # --- STAGE 1 : builder ---
 FROM rust:1-slim-trixie AS builder
 
+ARG DIOXUS_CLI_VERSION=0.7.10
+
 # 1. Install build dependencies needed for crates like reqwest/surrealdb
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
     libssl-dev \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists \
+    && rustup target add wasm32-unknown-unknown
 
-RUN rustup target add wasm32-unknown-unknown
-
-RUN curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
-RUN cargo binstall dioxus-cli --root /.cargo -y --force
-ENV PATH="/.cargo/bin:$PATH"
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+RUN cargo binstall dioxus-cli@${DIOXUS_CLI_VERSION} -y --force
 
 WORKDIR /app
 
@@ -33,14 +34,17 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 FROM debian:trixie-slim AS runtime
 
 # Install SSL certificates and runtime libraries needed by surrealdb/reqwest
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     libssl3 \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd -m -u 10001 -s /bin/sh appuser
 
 WORKDIR /usr/local/app
 
-COPY --from=builder /app/dist /usr/local/app
+COPY --from=builder --chown=appuser:appuser /app/dist /usr/local/app
+
+USER appuser
 
 ENV PORT=8080
 ENV IP=0.0.0.0
