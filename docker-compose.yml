@@ -23,8 +23,8 @@ services:
     init: true
     environment:
       - DATABASE_URL=surrealdb:8000
-      - DATABASE_USER=root
-      - DATABASE_PASS=root
+      - DATABASE_USER=${DATABASE_USER}
+      - DATABASE_PASS=${DATABASE_PASS}
     ports:
       - "8080:8080"
     restart: unless-stopped

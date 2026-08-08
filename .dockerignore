@@ -1,5 +1,6 @@
 .git/
 .cargo/
+.env
 db_start.sh
 README.md
 /target
