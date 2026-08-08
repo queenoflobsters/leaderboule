@@ -1,0 +1,122 @@
+body {
+  /* je sais pas à quoi ça sert */
+  margin: 0;
+}
+
+.top-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4rem;
+  color: white;
+  display: flex;
+  align-items: center;
+  padding: 0 1rem;
+  z-index: 420; /* GO FORTH MY CHILD */
+}
+
+.hamburger {
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 0.5rem;
+  margin-right: 1rem;
+}
+
+.hamburger.open {
+  background-color: #840000;
+}
+
+.route-title {
+  font-size: 1.25rem;
+  font-weight: bold;
+}
+
+.sidebar {
+  position: fixed;
+  top: 4rem; /* just under top-bar */
+  left: 0;
+  bottom: 0;
+  background-color: #111;
+  /* color: white; */
+  z-index: 420; /* GO CONQUEST THE WEST */
+  transform: translateX(-200%);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sidebar.open {
+  transform: translateX(0);
+}
+
+.nav-links {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.route-link {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  color: white;
+  text-decoration: none;
+  font-size: 1.1rem;
+}
+
+/* Main Content Area */
+.main-content {
+  margin-top: 60px;
+  padding: 16px;
+}
+
+/* Mobile et Shrunk screen */
+@media (max-width: 50rem) {
+  .sidebar {
+    width: 100dvw;
+  }
+
+  .active-route {
+    background-color: #840000;
+  }
+
+  .route-link:hover {
+    background-color: #a00;
+  }
+
+  .route-link {
+    margin: 1rem;
+    padding: 1rem;
+    border-radius: 0.3rem;
+  }
+}
+
+/* Desktop */
+@media (min-width: 50rem) {
+  .sidebar {
+    width: 18rem; /* fixed sidebar width */
+    border: 0.15rem solid #555;
+    border-radius: 1rem;
+    margin: 0.3rem 1rem 1rem 1rem;
+  }
+
+  /* shift content when menu open */
+  .main-content.open {
+    margin-left: 18rem;
+  }
+
+  .active-route {
+    background-color: #222;
+  }
+
+  .route-link:hover {
+    background-color: #333;
+  }
+
+  .route-link {
+    padding: 0.8rem 1.5rem;
+  }
+}

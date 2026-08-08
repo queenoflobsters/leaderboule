@@ -11,7 +11,6 @@
 .banner {
   /* display: grid; */
   /* grid-template-columns: auto 1fr 1fr; */
-  gap: 0.5rem;
 }
 
 .cards {
@@ -31,7 +30,6 @@
   background-color: #1c1c1c;
   color: #bbb;
   font-variant-numeric: tabular-nums;
-  /* border: 0.05rem gray solid; */
   border-radius: 0.3rem;
 }
 
@@ -49,6 +47,10 @@
   background-color: #840000;
 }
 
+.first, .second, .third {
+  border: 0.05rem gray solid;
+}
+
 .first::before,
 .second::before,
 .third::before {
@@ -61,13 +63,13 @@
 }
 
 .first {
-  border-color: goldenrod;
+border-color: goldenrod;
 }
 .second {
-  border-color: lightgray;
+border-color: lightgray;
 }
 .third {
-  border-color: #5e2906;
+border-color: #5e2906;
 }
 .first::before {
   background-color: goldenrod;

@@ -14,8 +14,6 @@ pub fn Leaderboard() -> Element {
 
         div {
             class: "leaderboard-container",
-            h1 { "Classement" }
-
             div {
                 class: "banner",
                 Banner { on_click: move |_| {
@@ -55,8 +53,8 @@ fn Banner(on_click: EventHandler<MouseEvent>) -> Element {
             img {
                 class: "reload-icon",
                 src: RELOAD_SVG,
-                width: 32,
-                height: 32,
+                width: 24,
+                height: 24,
                 alt: "Recharger",
             }
         }
