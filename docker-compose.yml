@@ -3,7 +3,7 @@ services:
   surrealdb:
     image: surrealdb/surrealdb:v3.0.0
     user: root
-    command: start --user root --pass root --bind 0.0.0.0:8000 rocksdb:/data/hotdog.db # REMOVE PASSWORDS
+    command: start --user root --pass root --bind 0.0.0.0:8000 rocksdb:/data/boules.db # REMOVE PASSWORDS
     ports:
       - "8000:8000" # For me to access the db anytime
     volumes:

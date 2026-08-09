@@ -11,7 +11,9 @@ dioxus = { version = "0.7.10", features = ["router", "fullstack"] }
 reqwest = { version = "0.13.4", features  = ["json"] }
 serde = { version = "1.0.229", features = ["derive"]}
 surrealdb = {version = "3.2.4", features = ["protocol-ws"], optional = true}
-tokio = {version = "1.53.1", features = ["sync"], optional = true}
+tokio = {version = "1.53.1", features = ["full"], optional = true}
+chrono = { version = "0.4", features = ["serde"], optional = true }
+uuid = { version = "1.10", features = ["v4"], optional = true }
 
 
 [features]
@@ -19,7 +21,7 @@ default = ["web", "server"]
 web = ["dioxus/web"]
 # desktop = ["dioxus/desktop"]
 # mobile = ["dioxus/mobile"]
-server = ["dioxus/server", "dep:surrealdb", "dep:tokio"]
+server = ["dioxus/server", "dep:surrealdb", "dep:tokio", "dep:chrono", "dep:uuid"]
 
 [profile.release]
 opt-level = "z" 
@@ -28,4 +30,4 @@ codegen-units = 1
 panic = "abort"  
 strip = true     
 
-# surreal start --user root --pass root --bind 127.0.0.1:8000 rocksdb:hotdog.db
+# surreal start --user root --pass root --bind 127.0.0.1:8000 rocksdb:boules.db

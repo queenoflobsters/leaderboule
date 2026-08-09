@@ -1,4 +1,4 @@
-use crate::client::Route;
+use crate::{api::{get_current_user, logout}, client::Route};
 use dioxus::prelude::*;
 
 const NAVBAR_CSS: Asset = asset!("assets/navbar.css");
@@ -9,6 +9,17 @@ const LEADERBOARD_SVG: Asset = asset!("assets/leaderboard.svg");
 pub fn Navbar() -> Element {
     let mut is_open = use_signal(|| false);
     let current_route = use_route::<Route>();
+
+    let user_resource = use_server_future(get_current_user)?;
+    let nav = navigator();
+
+    let on_logout = move |_| {
+        spawn(async move {
+            let _ = logout().await;
+            nav.push(Route::Login);
+        });
+    };
+
 
     rsx! {
         document::Stylesheet { href: NAVBAR_CSS }
@@ -45,6 +56,23 @@ pub fn Navbar() -> Element {
                             height: 24,
                         }
                         "{Route::Leaderboard.as_str()}"
+                    }
+
+                    {
+                        match user_resource() {
+                            Some(Ok(Some(email))) => rsx! {
+                                div { class: "user-badge",
+                                    span { "{email}" }
+                                    button { onclick: on_logout, "Déconnexion" }
+                                }
+                            },
+                            Some(Ok(None)) => {
+                                // User trying to access protected route inside Navbar without login
+                                nav.replace(Route::Login);
+                                rsx! { p { "Redirection..." } }
+                            },
+                            _ => rsx! { p { "Chargement..." } }
+                        }
                     }
                 }
             }
