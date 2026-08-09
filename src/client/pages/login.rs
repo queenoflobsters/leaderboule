@@ -1,5 +1,5 @@
 use dioxus::prelude::*;
-use crate::api::login;
+use crate::api::auth;
 use crate::client::Route;
 
 #[component]
@@ -17,7 +17,7 @@ pub fn Login() -> Element {
             is_loading.set(true);
             error_msg.set(None);
 
-            match login(user_email).await {
+            match auth::login(user_email).await {
                 Ok(Ok(())) => {
                     nav.push(Route::Leaderboard);
                 }

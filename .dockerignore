@@ -3,6 +3,7 @@
 .env
 db_start.sh
 README.md
+boules.db
 /target
 /temp
 /dist

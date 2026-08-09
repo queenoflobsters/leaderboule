@@ -3,12 +3,15 @@ services:
   surrealdb:
     image: surrealdb/surrealdb:v3.0.0
     user: root
-    command: start --user root --pass root --bind 0.0.0.0:8000 rocksdb:/data/boules.db # REMOVE PASSWORDS
+    command: start --bind 0.0.0.0:8000 rocksdb:/data/boules.db
     ports:
       - "8000:8000" # For me to access the db anytime
     volumes:
       - db_data:/data:z
     restart: unless-stopped
+    environment:
+      - SURREAL_USER=${DATABASE_USER}
+      - SURREAL_PASS=${DATABASE_PASS}
     healthcheck:
       test: ["CMD", "/surreal", "is-ready"]
       start_period: 2s
@@ -20,7 +23,7 @@ services:
   # Container 2: Dioxus App
   app:
     build: .
-    init: true
+    init: true # THIS LINE WILL CAUSE PROBLEMS SOMETIMES ?
     environment:
       - DATABASE_URL=surrealdb:8000
       - DATABASE_USER=${DATABASE_USER}

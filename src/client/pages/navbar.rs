@@ -1,4 +1,4 @@
-use crate::{api::{get_current_user, logout}, client::Route};
+use crate::{api::auth, client::Route};
 use dioxus::prelude::*;
 
 const NAVBAR_CSS: Asset = asset!("assets/navbar.css");
@@ -10,12 +10,12 @@ pub fn Navbar() -> Element {
     let mut is_open = use_signal(|| false);
     let current_route = use_route::<Route>();
 
-    let user_resource = use_server_future(get_current_user)?;
+    let user_resource = use_server_future(auth::get_current_user)?;
     let nav = navigator();
 
     let on_logout = move |_| {
         spawn(async move {
-            let _ = logout().await;
+            let _ = auth::logout().await;
             nav.push(Route::Login);
         });
     };
