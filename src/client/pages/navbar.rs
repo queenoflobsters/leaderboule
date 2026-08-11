@@ -10,10 +10,6 @@ const ACCOUNT_SVG: Asset = asset!("assets/account.svg");
 pub fn Navbar() -> Element {
     // Authentification management
     let nav = navigator();
-    // let on_logout = move |_| async move {
-    //     let _ = auth::logout().await;
-    //     nav.push(Route::Login);
-    // };
     let user_resource = use_server_future(auth::get_current_user)?;
     use_effect(move || match user_resource() {
         Some(Ok(None)) | Some(Err(_)) => {

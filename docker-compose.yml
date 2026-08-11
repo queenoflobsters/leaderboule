@@ -28,6 +28,8 @@ services:
       - DATABASE_URL=surrealdb:8000
       - DATABASE_USER=${DATABASE_USER}
       - DATABASE_PASS=${DATABASE_PASS}
+      - HELLOASSO_CLIENT_ID=${HELLOASSO_CLIENT_ID}
+      - HELLOASSO_CLIENT_SECRET=${HELLOASSO_CLIENT_SECRET}
     ports:
       - "8080:8080"
     restart: unless-stopped
