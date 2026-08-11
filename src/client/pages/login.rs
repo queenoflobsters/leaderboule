@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
 use crate::api::auth;
-use crate::client::Route;
+use crate::client::route::Route;
 
 #[component]
 pub fn Login() -> Element {
@@ -46,9 +46,9 @@ pub fn Login() -> Element {
                     required: true,
                 }
                 button {
-                    r#type: "submit",
+                    type: "submit",
                     disabled: is_loading(),
-                    if is_loading() { "Vérification..." } else { "Se connecter" }
+                    {if is_loading() { "Vérification..." } else { "Se connecter" }}
                 }
             }
 

@@ -21,3 +21,11 @@ button {
     background-color: #191919;
     color: #bbb;
 }
+
+.abnormal-state-message {
+  display: flex;
+  justify-content: center;
+  margin-top: 5rem;
+  text-align: center;
+  font-size: 1.4rem;
+}

@@ -25,7 +25,7 @@ pub fn Leaderboard() -> Element {
             div {
                 class: "cards",
                 SuspenseBoundary {
-                    fallback: move |_| rsx! { p { class:"pending-messages", "Patience..." } },
+                    fallback: move |_| rsx! { p { class:"abnormal-state-message", "Patience..." } },
                     PerfCardsManager { user_perfs_hook }
                 }
             }

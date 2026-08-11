@@ -40,7 +40,6 @@ body {
   left: 0;
   bottom: 0;
   background-color: #111;
-  /* color: white; */
   z-index: 420; /* GO CONQUEST THE WEST */
   transform: translateX(-200%);
   display: flex;
@@ -52,13 +51,22 @@ body {
   transform: translateX(0);
 }
 
+.classic-routes {
+  flex: 1;
+  margin-bottom: 1rem;
+}
+
+.routes-container {
+  overflow: hidden;
+}
+
 .nav-links {
   list-style: none;
   padding: 0;
   margin: 0;
 }
 
-.route-link {
+.route-entry {
   display: flex;
   align-items: center;
   gap: 1rem;
@@ -83,11 +91,11 @@ body {
     background-color: #840000;
   }
 
-  .route-link:hover {
+  .route-entry:hover {
     background-color: #a00;
   }
 
-  .route-link {
+  .route-entry {
     margin: 1rem;
     padding: 1rem;
     border-radius: 0.3rem;
@@ -98,9 +106,12 @@ body {
 @media (min-width: 50rem) {
   .sidebar {
     width: 18rem; /* fixed sidebar width */
-    border: 0.15rem solid #555;
-    border-radius: 1rem;
     margin: 0.3rem 1rem 1rem 1rem;
+  }
+
+  .routes-container {
+    border: 0.15rem solid #555;
+    border-radius: 0.4rem;
   }
 
   /* shift content when menu open */
@@ -112,11 +123,11 @@ body {
     background-color: #222;
   }
 
-  .route-link:hover {
+  .route-entry:hover {
     background-color: #333;
   }
 
-  .route-link {
+  .route-entry {
     padding: 0.8rem 1.5rem;
   }
 }

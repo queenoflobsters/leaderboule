@@ -9,10 +9,11 @@ use tokio::sync::OnceCell;
 
 pub static DB: OnceCell<Surreal<Client>> = OnceCell::const_new();
 
+// TODO replace email by user_id or smth
 /// Session database model
 #[derive(Debug, Serialize, Deserialize, Clone, SurrealValue)]
 pub struct SessionRecord {
-    pub token: String,
+    pub token: uuid::Uuid,
     pub email: String,
     pub expires_at: u64,
 }
@@ -35,8 +36,8 @@ pub async fn get() -> &'static Surreal<Client> {
         .await
         .expect("Failed to sign in to SurrealDB");
 
-        db.use_ns("myapp")
-            .use_db("myapp")
+        db.use_ns("leaderboule")
+            .use_db("leaderboule")
             .await
             .expect("Failed to select namespace/db");
         db

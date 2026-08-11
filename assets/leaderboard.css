@@ -33,13 +33,6 @@
   border-radius: 0.3rem;
 }
 
-.pending-messages {
-  display: flex;
-  justify-content: center;
-  margin-top: 5rem;
-  text-align: center;
-  font-size: 1.4rem;
-}
 
 .reload-button {
   /* grid-column: 3; */
