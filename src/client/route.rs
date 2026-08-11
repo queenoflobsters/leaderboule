@@ -1,5 +1,7 @@
+use crate::client::pages::{
+    account::Account, leaderboard::Leaderboard, login::Login, logout::Logout, navbar::Navbar,
+};
 use dioxus::prelude::*;
-use crate::client::pages::{leaderboard::Leaderboard, login::Login, navbar::Navbar, logout::Logout, account::Account};
 
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 
@@ -14,9 +16,8 @@ pub enum Route {
     #[route("/logout")]
     Logout,
     #[route("/account")]
-    Account
-    // #[end_layout]
-    // TODO make page not found
+    Account, // #[end_layout]
+             // TODO make page not found
 }
 
 impl Route {
@@ -25,7 +26,7 @@ impl Route {
             Route::Leaderboard => "Classement",
             Route::Login => "Connexion",
             Route::Logout => "Déconnexion",
-            Route::Account => "Compte",
+            Route::Account => "Mon Compte",
         }
     }
 }
