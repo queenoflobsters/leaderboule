@@ -47,6 +47,7 @@ body {
   overflow: hidden;
 }
 
+
 .sidebar.open {
   transform: translateX(0);
 }
@@ -60,12 +61,6 @@ body {
   overflow: hidden;
 }
 
-.nav-links {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
 .route-entry {
   display: flex;
   align-items: center;
@@ -77,9 +72,10 @@ body {
 
 /* Main Content Area */
 .main-content {
-  margin-top: 60px;
-  padding: 16px;
+  margin-top: 4rem;
+  padding: 1rem;
 }
+
 
 /* Mobile et Shrunk screen */
 @media (max-width: 50rem) {

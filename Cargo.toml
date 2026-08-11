@@ -10,15 +10,20 @@ edition = "2021"
 dioxus = { version = "=0.7.10", features = ["router", "fullstack"] }
 reqwest = { version = "0.13.4", features  = ["json"] }
 serde = { version = "1.0.229", features = ["derive"]}
-surrealdb = {version = "3.2.4", features = ["protocol-ws"], optional = true}
-tokio = {version = "1.53.1", features = ["full"], optional = true}
-uuid = { version = "1.10", features = ["v4"], optional = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+web-sys = { version = "0.3", features = ["Window", "MediaQueryList"]}
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+surrealdb = {version = "3.2.4", features = ["protocol-ws"]}
+tokio = {version = "1.53.1", features = ["full"]}
+uuid = { version = "1.10", features = ["v4"]}
 
 
 [features]
 default = ["web", "server"]
 web = ["dioxus/web"]
-server = ["dioxus/server", "dep:surrealdb", "dep:tokio", "dep:uuid"]
+server = ["dioxus/server"]
 
 [profile.release]
 opt-level = "z" 

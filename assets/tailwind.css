@@ -166,6 +166,12 @@
   .static {
     position: static;
   }
+  .block {
+    display: block;
+  }
+  .flex {
+    display: flex;
+  }
   .table {
     display: table;
   }

@@ -4,6 +4,7 @@ use dioxus::prelude::*;
 const NAVBAR_CSS: Asset = asset!("assets/navbar.css");
 const HAMBURGER_SVG: Asset = asset!("assets/hamburger.svg");
 const LEADERBOARD_SVG: Asset = asset!("assets/leaderboard.svg");
+const ACCOUNT_SVG: Asset = asset!("assets/account.svg");
 
 #[component]
 pub fn Navbar() -> Element {
@@ -29,6 +30,17 @@ pub fn Navbar() -> Element {
 
     let mut is_open = use_signal(|| false);
     let current_route = use_route::<Route>();
+    let on_link_click = move |_| {
+        #[cfg(target_arch = "wasm32")] // make rust-analyzer ignore the block
+        #[cfg(feature = "web")]
+        if let Some(window) = web_sys::window() {
+            if let Ok(Some(mq)) = window.match_media("(max-width: 50rem)") {
+                if mq.matches() {
+                    is_open.set(false);
+                }
+            }
+        }
+    };
 
     rsx! {
             document::Stylesheet { href: NAVBAR_CSS }
@@ -52,33 +64,11 @@ pub fn Navbar() -> Element {
             // Sliding Sidebar
             nav { class: if is_open() { "sidebar open" } else { "sidebar" },
                 div { class: "routes-container classic-routes",
-                    ul { class: "nav-links",
-                         li {
-                            Link {
-                                class: if is_open() { "route-entry open" } else { "route-entry" },
-                                to: Route::Leaderboard {},
-                                active_class: "active-route",
-                                onclick: move |_| is_open.set(false),
-                                img {
-                                    class: "route-icon",
-                                    src: LEADERBOARD_SVG,
-                                    width: 24,
-                                    height: 24,
-                                }
-                                {Route::Leaderboard.as_str()}
-                            }
-
-
-
-                        }
-                    }
-                }
-                div { class: "routes-container account-route",
                     Link {
                         class: if is_open() { "route-entry open" } else { "route-entry" },
                         to: Route::Leaderboard {},
                         active_class: "active-route",
-                        onclick: move |_| is_open.set(false),
+                        onclick: on_link_click,
                         img {
                             class: "route-icon",
                             src: LEADERBOARD_SVG,
@@ -86,6 +76,21 @@ pub fn Navbar() -> Element {
                             height: 24,
                         }
                         {Route::Leaderboard.as_str()}
+                    }
+                }
+                div { class: "routes-container account-route",
+                    Link {
+                        class: if is_open() { "route-entry open" } else { "route-entry" },
+                        to: Route::Account {},
+                        active_class: "active-route",
+                        onclick: on_link_click,
+                        img {
+                            class: "route-icon",
+                            src: ACCOUNT_SVG,
+                            width: 24,
+                            height: 24,
+                        }
+                        {username}
                     }
                 }
             }

@@ -1,11 +1,12 @@
 use crate::{
-    api::auth,
+    api::{auth},
     server::{
         db,
         utils::{self, THIRTY_DAYS_IN_SECS},
     },
 };
 use dioxus::{
+    prelude::*,
     fullstack::FullstackContext,
     server::{
         axum::{
@@ -86,7 +87,6 @@ pub async fn middleware(mut req: extract::Request, next: middleware::Next) -> re
     if let Some(token) = parse_cookie(req.headers(), "session_token") {
         let db = db::get().await;
 
-        // TODO make this prettier
         let session: Option<db::SessionRecord> = db.select(("session", token)).await.ok().flatten();
 
         if let Some(session) = session {
@@ -104,3 +104,4 @@ pub async fn middleware(mut req: extract::Request, next: middleware::Next) -> re
 
     next.run(req).await
 }
+
