@@ -1,5 +1,5 @@
 use crate::client::pages::{
-    account::Account, leaderboard::Leaderboard, login::Login, logout::Logout, navbar::Navbar,
+    account::Account, leaderboard::Leaderboard, login::Login, logout::Logout, navbar::Navbar, page_not_found::PageNotFound
 };
 use dioxus::prelude::*;
 
@@ -16,8 +16,11 @@ pub enum Route {
     #[route("/logout")]
     Logout,
     #[route("/account")]
-    Account, // #[end_layout]
-             // TODO make page not found
+    Account, 
+    #[route("/:..segments")]
+    PageNotFound { segments: Vec<String> }
+
+     // TODO make page not found
 }
 
 impl Route {
@@ -27,6 +30,14 @@ impl Route {
             Route::Login => "Connexion",
             Route::Logout => "Déconnexion",
             Route::Account => "Mon Compte",
+            Route::PageNotFound { .. } => "Page non trouvée"
+        }
+    }
+
+    pub fn is_public(&self) -> bool {
+        match self {
+            Route::Login => true,
+            _ => false,
         }
     }
 }

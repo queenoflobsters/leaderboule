@@ -1,13 +1,15 @@
+use std::str::FromStr;
+
 use crate::{
-    api::{auth},
+    client::route::Route,
     server::{
-        db,
+        db::{self, SessionToken},
         utils::{self, THIRTY_DAYS_IN_SECS},
     },
 };
 use dioxus::{
+    fullstack::{response::IntoResponse, FullstackContext, Redirect},
     prelude::*,
-    fullstack::FullstackContext,
     server::{
         axum::{
             self, extract,
@@ -17,59 +19,29 @@ use dioxus::{
         ServerFnError,
     },
 };
-use uuid::Uuid;
 
-/// Helper function to parse cookie string from raw headers
-pub fn parse_cookie(headers: &axum::http::HeaderMap, name: &str) -> Option<String> {
+/// Helper function to parse session_token cookie from raw headers
+pub fn parse_session_token_cookie(headers: &axum::http::HeaderMap) -> Option<SessionToken> {
     let cookie_header = headers.get(axum::http::header::COOKIE)?.to_str().ok()?;
     // Split by ';'
     for cookie in cookie_header.split(';') {
         // Split by '=' in two parts
         let mut parts = cookie.trim().splitn(2, '=');
         if let (Some(k), Some(v)) = (parts.next(), parts.next()) {
-            if k == name {
-                return Some(v.to_string());
+            if k == "session_token" {
+                return Some(SessionToken(v.parse().ok()?));
             }
         }
     }
     None
 }
 
-// TODO Implement this
-pub async fn is_helloasso_adherent(email: &str) -> Result<bool, String> {
-    let email = email.trim();
-    if email.is_empty() || !email.contains('@') {
-        return Ok(false);
-    }
-    Ok(true)
-}
-
-/// Generate session and insert into SurrealDB
-pub async fn save_session_record(email: String) -> Result<Uuid, ServerFnError> {
-    let token = Uuid::new_v4();
-    let db = db::get().await;
-    let expires_at = utils::current_time_secs() + utils::THIRTY_DAYS_IN_SECS;
-
-    let session = db::SessionRecord {
-        token: token.clone(),
-        email,
-        expires_at,
-    };
-
-    let _created: Option<db::SessionRecord> = db
-        .create(("session", token.to_string()))
-        .content(session)
-        .await
-        .map_err(|e| ServerFnError::new(e.to_string()))?;
-
-    Ok(token)
-}
-
-/// Gemerate cookie header and modify response via context
-pub fn add_cookie_to_response(token: uuid::Uuid) -> Result<(), ServerFnError> {
+/// Generate cookie header and modify response via context
+pub fn add_cookie_to_response(session_token: SessionToken) -> Result<(), ServerFnError> {
     // Generate cookie header directly
     let cookie_str = format!(
-        "session_token={token}; Path=/; HttpOnly; SameSite=Lax; Max-Age={THIRTY_DAYS_IN_SECS}"
+        "session_token={}; Path=/; HttpOnly; SameSite=Lax; Max-Age={}",
+        session_token.0, THIRTY_DAYS_IN_SECS
     );
 
     // Modify response headers via context
@@ -83,25 +55,46 @@ pub fn add_cookie_to_response(token: uuid::Uuid) -> Result<(), ServerFnError> {
 }
 
 /// Axum Middleware: Populates AuthUser extension if cookie is valid.
-pub async fn middleware(mut req: extract::Request, next: middleware::Next) -> response::Response {
-    if let Some(token) = parse_cookie(req.headers(), "session_token") {
-        let db = db::get().await;
+pub async fn server_auth_guard(
+    mut req: extract::Request,
+    next: middleware::Next,
+) -> response::Response {
+    let path = req.uri().path();
 
-        let session: Option<db::SessionRecord> = db.select(("session", token)).await.ok().flatten();
-
-        if let Some(session) = session {
-            if session.expires_at > utils::current_time_secs() {
-                req.extensions_mut().insert(auth::AuthedUser {
-                    email: session.email,
-                });
-            }
-            // TODO delete entry when invalid
-            // } else {
-            //     db.delete(("session", token)).
-            // }
-        }
+    // 1. Ignore static assets & Dioxus system WebSockets
+    if path.starts_with("/public") || path.starts_with("/_dioxus") {
+        return next.run(req).await;
     }
 
-    next.run(req).await
+    // 2. Check if the path is public
+    let route = Route::from_str(path).unwrap_or(Route::PageNotFound { segments: vec![] });
+    if !route.is_public() {
+        return Redirect::to(&Route::Login.to_string()).into_response();
+    }
+
+    // 3. Check for authentification
+    if let Some(session_token) = is_cookie_authenticated(&req).await {
+        req.extensions_mut().insert(session_token);
+        return next.run(req).await;
+    }
+
+    return Redirect::to(&Route::Login.to_string()).into_response();
 }
 
+async fn is_cookie_authenticated(req: &extract::Request) -> Option<SessionToken> {
+    if let Some(session_token) = parse_session_token_cookie(req.headers()) {
+        let db = db::get().await;
+        let session_match: Option<db::SessionRecord> =
+            db.select(("session", session_token.0)).await.ok().flatten();
+        if let Some(session) = session_match {
+            if session.expires_at > utils::current_time_secs() {
+                return Some(session.session_token);
+            }
+        }
+        // TODO delete entry when invalid
+        // } else {
+        //     db.delete(("session", token)).
+        // }
+    }
+    None
+}

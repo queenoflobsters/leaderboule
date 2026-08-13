@@ -17,7 +17,7 @@ web-sys = { version = "0.3", features = ["Window", "MediaQueryList"]}
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 surrealdb = {version = "3.2.4", features = ["protocol-ws"]}
 tokio = {version = "1.53.1", features = ["full"]}
-uuid = { version = "1.10", features = ["v4"]}
+dotenvy = "0.15"
 
 
 [features]

@@ -9,21 +9,8 @@ const ACCOUNT_SVG: Asset = asset!("assets/account.svg");
 #[component]
 pub fn Navbar() -> Element {
     // Authentification management
-    let nav = navigator();
-    let user_resource = use_server_future(auth::get_current_user)?;
-    use_effect(move || match user_resource() {
-        Some(Ok(None)) | Some(Err(_)) => {
-            nav.replace(Route::Login);
-        }
-        _ => {}
-    });
-    let username = match user_resource() {
-        Some(Ok(Some(user))) => user.email,
-        Some(Ok(None)) => "Redirection...".to_string(),
-        Some(Err(_)) => "ERREUR".to_string(),
-        None => "Chargement...".to_string(), // supposedly unreachable
-    };
-
+    // TODO WARNING WARN TODO
+    let username = "TODO TODO TODO";
     let mut is_open = use_signal(|| false);
     let current_route = use_route::<Route>();
     let on_link_click = move |_| {
@@ -92,13 +79,8 @@ pub fn Navbar() -> Element {
             }
 
             // Page content injected here
-            {if let Some(Err(e)) = user_resource() {
-                rsx!{ p {"Erreur : {e.to_string()}"} }
-            } else {
-                rsx!{
-                    main { class: if is_open() { "main-content open" } else { "main-content" },
-                    Outlet::<Route> {}}
-                }
-            }}
+                main { class: if is_open() { "main-content open" } else { "main-content" },
+                Outlet::<Route> {}
+            }
         }
 }

@@ -30,32 +30,31 @@ pub struct HelloassoClient {
     tokens: Arc<RwLock<Option<HelloassoTokens>>>,
 }
 
+pub async fn get_adherent(email: &str) -> Result<Option<PayerInfo>, ServerFnError> {
+    // TODO for faster login time, implement a helloasso hook to listen to new memberships
+    // store them in a new database table a create a new account for them at every adhesion
+    let access_token = get().get_access_token().await.map_err(|e| ServerFnError::new(e.to_string()))?;
+    let api_url = format!("{}/organizations/{}/forms/Membership/{}/items", HELLOASSO_API_URL, ASSOCIATION_SLUG, ASSO_FORM_SLUG);
+
+    let response= get().client.get(&api_url)
+        .bearer_auth(access_token)
+        .query(&[
+            ("userSearchKey", email),
+            ("withDetails", "false"),
+            ("itemStates", "Processed")
+        ])
+        .send()
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))?
+        .json::<HelloassoResponse>()
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))?;
+
+    tracing::info!("{:?}", response);
+    Ok(response.aggregate_payers())
+}
 
 impl HelloassoClient {
-
-    pub async fn is_adherent(&self, email: &str) -> Result<bool, ServerFnError> {
-        // TODO for faster login time, implement a helloasso hook to listen to new memberships
-        // store them in a new database table a create a new account for them at every adhesion
-        let access_token = self.get_access_token().await.map_err(|e| ServerFnError::new(e.to_string()))?;
-        let api_url = format!("{}/organizations/{}/forms/Membership/{}/items", HELLOASSO_API_URL, ASSOCIATION_SLUG, ASSO_FORM_SLUG);
-
-        let items: Vec<MemberItem> = get().client.get(&api_url)
-            .bearer_auth(access_token)
-            .query(&[
-                ("userSearchKey", email),
-                ("withDetails", "false"),
-                ("itemStates", "Processed")
-            ])
-            .send()
-            .await
-            .map_err(|e| ServerFnError::new(e.to_string()))?
-            .json()
-            .await
-            .map_err(|e| ServerFnError::new(e.to_string()))?;
-
-        tracing::info!("{:?}", items);
-        Ok(true)
-    }
 
     fn new(client_id: String, client_secret: String) -> Self {
         Self {
@@ -131,20 +130,46 @@ impl HelloassoClient {
 
 }
 
+/// reqwest .json() deserialization 
 #[derive(Deserialize, Debug)]
-struct MemberItem {
-    pub user: UserInfo,
+struct HelloassoResponse {
+    data: Vec<HelloassoResponseDataItem>
 }
 
-#[derive(Deserialize, Debug, Clone)]
-struct UserInfo {
-    #[serde(rename = "firstName")]
-    first_name: Option<String>,
+/// reqwest .json() deserialization 
+#[derive(Deserialize, Debug)]
+struct HelloassoResponseDataItem {
+    payer: PayerInfo,
+}
 
-    #[serde(rename = "lastName")]
-    last_name: Option<String>,
+/// reqwest .json() deserialization 
+#[derive(Deserialize, Debug, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct PayerInfo {
+    pub first_name: Option<String>,
+    pub last_name: Option<String>,
+    pub email: Option<String>
+}
 
-    email: Option<String>
+
+impl HelloassoResponse {
+    /// This consumes the HelloassoResponse
+    fn aggregate_payers(self) -> Option<PayerInfo> {
+        let mut agg = PayerInfo::default();
+
+        for HelloassoResponseDataItem { payer } in self.data {
+            agg.email = agg.email.or(payer.email);
+            agg.first_name = agg.first_name.or(payer.first_name);
+            agg.last_name = agg.last_name.or(payer.last_name);
+        }
+
+        if agg.email.is_some() {
+            Some(agg)
+        } else {
+            None
+        }
+        
+    }
 }
 
 #[derive(Deserialize)]
