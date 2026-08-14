@@ -169,14 +169,6 @@ pub async fn has_account_or_create(email: &str) -> Result<Option<UserId>, Server
         .map_err(|e| ServerFnError::new(e.to_string()))?
         .take(0)
         .map_err(|e| ServerFnError::new(e.to_string()))?;
-    // let user_match = Some(UserRecord {
-    //     id: UserId(Uuid::max()),
-    //     email: "max@maximum.com".to_string(),
-    //     username: "Maxime Maximum".to_string(),
-    //     elo: 9999,
-    //     games_played: 1,
-    //     games_won: 1
-    // });
 
     if let Some(user) = user_match {
         info!("AUTH : user found in db, returning user.id");

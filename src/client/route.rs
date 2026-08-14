@@ -1,5 +1,6 @@
-use crate::client::pages::{
-    account::Account, leaderboard::Leaderboard, login::Login, logout::Logout, navbar::Navbar, page_not_found::PageNotFound
+use crate::client::{
+    account::Account, leaderboard::Leaderboard, login::Login, logout::Logout, navbar::Navbar,
+    page_not_found::PageNotFound,
 };
 use dioxus::prelude::*;
 
@@ -18,9 +19,8 @@ pub enum Route {
     #[route("/logout")]
     Logout,
     #[route("/account")]
-    Account, 
-
-     // TODO make page not found
+    Account,
+    // TODO make page not found
 }
 
 impl Route {
@@ -30,7 +30,7 @@ impl Route {
             Route::Login => "Connexion",
             Route::Logout => "Déconnexion",
             Route::Account => "Mon Compte",
-            Route::PageNotFound { .. } => "Page non trouvée"
+            Route::PageNotFound { .. } => "Page non trouvée",
         }
     }
 
