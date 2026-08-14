@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use crate::{
     client::route::Route,
     server::{
@@ -19,9 +17,27 @@ use dioxus::{
         ServerFnError,
     },
 };
+use reqwest::header::HeaderMap;
+use std::str::FromStr;
+
+// // may be useful sometimes
+// fn parse_cookie(headers: &HeaderMap, key: &str) -> Option<String> {
+//     let cookie_header = headers.get(axum::http::header::COOKIE)?.to_str().ok()?;
+//     // Split by ';'
+//     for cookie in cookie_header.split(';') {
+//         // Split by '=' in two parts
+//         let mut parts = cookie.trim().splitn(2, '=');
+//         if let (Some(k), Some(v)) = (parts.next(), parts.next()) {
+//             if k == key {
+//                 return Some(SessionToken(v.parse().ok()?));
+//             }
+//         }
+//     }
+//     None
+// }
 
 /// Helper function to parse session_token cookie from raw headers
-pub fn parse_session_token_cookie(headers: &axum::http::HeaderMap) -> Option<SessionToken> {
+pub fn parse_session_token_cookie(headers: &HeaderMap) -> Option<SessionToken> {
     let cookie_header = headers.get(axum::http::header::COOKIE)?.to_str().ok()?;
     // Split by ';'
     for cookie in cookie_header.split(';') {
@@ -54,6 +70,19 @@ pub fn add_cookie_to_response(session_token: SessionToken) -> Result<(), ServerF
     Ok(())
 }
 
+/// Expire cookie by generating clear one
+pub fn clear_cookie_from_response() -> Result<(), ServerFnError> {
+    let clear_cookie = "session_token=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0";
+
+    if let Some(ctx) = FullstackContext::current() {
+        if let Ok(val) = HeaderValue::from_str(&clear_cookie) {
+            ctx.add_response_header(SET_COOKIE, val);
+        }
+    }
+
+    Ok(())
+}
+
 /// Axum Middleware: Populates AuthUser extension if cookie is valid.
 pub async fn server_auth_guard(
     mut req: extract::Request,
@@ -73,16 +102,18 @@ pub async fn server_auth_guard(
     }
 
     // 3. Check for authentification
-    if let Some(session_token) = is_cookie_authenticated(&req).await {
+    if let Some(session_token) = is_cookie_authenticated(req.headers()).await {
+        // 4. Insert axum extension if authed
         req.extensions_mut().insert(session_token);
         return next.run(req).await;
     }
 
+    // 4. Redirect if not authed
     return Redirect::to(&Route::Login.to_string()).into_response();
 }
 
-async fn is_cookie_authenticated(req: &extract::Request) -> Option<SessionToken> {
-    if let Some(session_token) = parse_session_token_cookie(req.headers()) {
+async fn is_cookie_authenticated(req: &HeaderMap) -> Option<SessionToken> {
+    if let Some(session_token) = parse_session_token_cookie(req) {
         let db = db::get().await;
         let session_match: Option<db::SessionRecord> =
             db.select(("session", session_token.0)).await.ok().flatten();
@@ -90,11 +121,11 @@ async fn is_cookie_authenticated(req: &extract::Request) -> Option<SessionToken>
             if session.expires_at > utils::current_time_secs() {
                 return Some(session.session_token);
             }
+        } else {
+            let _deleted: Option<db::SessionRecord> =
+                db.delete(("session", session_token.0)).await.ok().flatten();
         }
-        // TODO delete entry when invalid
-        // } else {
-        //     db.delete(("session", token)).
-        // }
     }
     None
 }
+

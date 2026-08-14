@@ -1,4 +1,5 @@
-use dioxus::server::ServerFnError;
+use dioxus::{fullstack::FullstackContext, server::ServerFnError};
+use reqwest::header::HeaderMap;
 use serde::{Deserialize, Serialize};
 use surrealdb::{
     engine::remote::ws::{Client, Ws},
@@ -9,9 +10,7 @@ use surrealdb::{
 use tokio::sync::OnceCell;
 
 use crate::server::{
-    elo,
-    helloasso::{self, PayerInfo},
-    utils,
+    auth, elo, helloasso::{self, PayerInfo}, utils
 };
 
 pub static DB: OnceCell<Surreal<Client>> = OnceCell::const_new();
@@ -69,7 +68,7 @@ pub async fn get() -> &'static Surreal<Client> {
 }
 
 /// Generate session and insert into SurrealDB
-pub async fn save_session_record(user_id: UserId) -> Result<SessionToken, ServerFnError> {
+pub async fn create_session_record(user_id: UserId) -> Result<SessionToken, ServerFnError> {
     // TODO MAKE THIS WITH UUID NOT EMAIL
     let session_token = SessionToken(Uuid::new_v7());
     let db = get().await;
@@ -90,12 +89,27 @@ pub async fn save_session_record(user_id: UserId) -> Result<SessionToken, Server
     Ok(session_token)
 }
 
+/// Get the session_token from the axum context and delete it from DB
+pub async fn delete_session_record() -> Result<(), ServerFnError> {
+    if let Ok(req_headers) = FullstackContext::extract::<HeaderMap, _>().await {
+        if let Some(session_token) = auth::parse_session_token_cookie(&req_headers) {
+            let _: Option<SessionRecord> = get()
+                .await
+                .delete(("session", session_token.0))
+                .await
+                .map_err(|e| ServerFnError::new(e.to_string()))?;
+        }
+    }
+
+    Ok(())
+}
+
 /// Returns the user id
 pub async fn has_account_or_create(email: &str) -> Result<Option<UserId>, ServerFnError> {
     // 1. Search inside the DB for user with this email
     let db = get().await;
     let user_match: Option<UserRecord> = db
-        .query("SELECT * FROM users WHERE email = $email")
+        .query("SELECT * FROM user WHERE email = $email")
         .bind(("email", email))
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?
@@ -149,7 +163,7 @@ async fn create_user_from_payer(payer: PayerInfo) -> Result<UserId, ServerFnErro
     };
 
     let _created: Option<UserRecord> = db
-        .create(("users", id.0))
+        .create(("user", id.0))
         .content(user_record)
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?;
