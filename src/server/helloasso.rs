@@ -1,18 +1,17 @@
-use dioxus::{logger::tracing, prelude::*};
+use dioxus::prelude::*;
 use serde::Deserialize;
-use std::{sync::{Arc, OnceLock}, time::Duration};
-use tokio::{
-    sync::{RwLock},
-    time::Instant,
+use std::{
+    sync::{Arc, OnceLock},
+    time::Duration,
 };
+use tokio::{sync::RwLock, time::Instant};
 
 const HELLOASSO_OAUTH_TOKEN_URL: &'static str = "https://api.helloasso.com/oauth2/token";
 const HELLOASSO_API_URL: &'static str = "https://api.helloasso.com/v5";
 const ASSOCIATION_SLUG: &'static str = "petanqu-insa-club";
 // WARNING TODO WARNING change this form slug
 const ASSO_FORM_SLUG: &'static str = "adhesion-2025-2026-petanqu-insa-club";
-static HELLOASSO_CLIENT: OnceLock<HelloassoClient> =OnceLock::new();
-
+static HELLOASSO_CLIENT: OnceLock<HelloassoClient> = OnceLock::new();
 
 pub fn get() -> &'static HelloassoClient {
     HELLOASSO_CLIENT.get_or_init(|| {
@@ -33,15 +32,25 @@ pub struct HelloassoClient {
 pub async fn get_adherent(email: &str) -> Result<Option<PayerInfo>, ServerFnError> {
     // TODO for faster login time, implement a helloasso hook to listen to new memberships
     // store them in a new database table a create a new account for them at every adhesion
-    let access_token = get().get_access_token().await.map_err(|e| ServerFnError::new(e.to_string()))?;
-    let api_url = format!("{}/organizations/{}/forms/Membership/{}/items", HELLOASSO_API_URL, ASSOCIATION_SLUG, ASSO_FORM_SLUG);
+    let access_token = get()
+        .get_access_token()
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))?;
+    let api_url = format!(
+        "{}/organizations/{}/forms/Membership/{}/items",
+        HELLOASSO_API_URL, ASSOCIATION_SLUG, ASSO_FORM_SLUG
+    );
 
-    let response= get().client.get(&api_url)
+    info!("HA : requesting payers list from Helloasso");
+
+    let response = get()
+        .client
+        .get(&api_url)
         .bearer_auth(access_token)
         .query(&[
             ("userSearchKey", email),
             ("withDetails", "false"),
-            ("itemStates", "Processed")
+            ("itemStates", "Processed"),
         ])
         .send()
         .await
@@ -50,14 +59,13 @@ pub async fn get_adherent(email: &str) -> Result<Option<PayerInfo>, ServerFnErro
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?;
 
-    tracing::info!("AUTH : resposne : {:?}", response);
+    info!("HA : response : {:?}", response);
     let agg = response.aggregate_payers(email);
-    tracing::info!("AUTH : aggregate_payers : {:?}", agg);
+    info!("HA : aggregate_payers : {:?}", agg);
     Ok(agg)
 }
 
 impl HelloassoClient {
-
     fn new(client_id: String, client_secret: String) -> Self {
         Self {
             client: reqwest::Client::new(),
@@ -68,6 +76,8 @@ impl HelloassoClient {
     }
 
     async fn get_access_token(&self) -> Result<String, reqwest::Error> {
+        info!("HA : trying to read access_token");
+
         // added time for security
         let expire_instant = Instant::now() + Duration::from_secs(60);
 
@@ -75,10 +85,17 @@ impl HelloassoClient {
 
         match token_read_guard {
             Some(ref tokens) if tokens.expires_at > expire_instant => {
+                info!("HA : found access_token, returning");
                 Ok(tokens.access_token.clone())
             }
-            Some(ref tokens) => self.request_token_refresh(tokens).await,
-            None => self.request_access_token().await,
+            Some(ref tokens) => {
+                info!("HA : access_token expired, requesting token refresh");
+                self.request_token_refresh(tokens).await
+            }
+            None => {
+                info!("HA : no access_token, requesting full access_token and refresh_token");
+                self.request_access_token().await
+            }
         }
     }
 
@@ -104,10 +121,11 @@ impl HelloassoClient {
             refresh_token: res.refresh_token,
             expires_at: Instant::now() + Duration::from_secs(res.expires_in),
         });
+        info!("HA : successfully refreshed tokens");
         Ok(res.access_token)
     }
 
-    async fn request_access_token(&self) -> Result<String, reqwest::Error> {        
+    async fn request_access_token(&self) -> Result<String, reqwest::Error> {
         let res = self
             .client
             .post(HELLOASSO_OAUTH_TOKEN_URL)
@@ -127,32 +145,31 @@ impl HelloassoClient {
             refresh_token: res.refresh_token,
             expires_at: Instant::now() + Duration::from_secs(res.expires_in),
         });
+        info!("HA : successfully acquired access and refresh tokens");
         Ok(res.access_token)
     }
-
 }
 
-/// reqwest .json() deserialization 
+/// reqwest .json() deserialization
 #[derive(Deserialize, Debug)]
 struct HelloassoResponse {
-    data: Vec<HelloassoResponseDataItem>
+    data: Vec<HelloassoResponseDataItem>,
 }
 
-/// reqwest .json() deserialization 
+/// reqwest .json() deserialization
 #[derive(Deserialize, Debug)]
 struct HelloassoResponseDataItem {
     payer: PayerInfo,
 }
 
-/// reqwest .json() deserialization 
+/// reqwest .json() deserialization
 #[derive(Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct PayerInfo {
     pub first_name: Option<String>,
     pub last_name: Option<String>,
-    pub email: Option<String>
+    pub email: Option<String>,
 }
-
 
 impl HelloassoResponse {
     /// This consumes the HelloassoResponse
@@ -176,7 +193,6 @@ impl HelloassoResponse {
         } else {
             None
         }
-        
     }
 }
 
@@ -193,4 +209,3 @@ struct HelloassoTokens {
     refresh_token: String,
     expires_at: Instant,
 }
-

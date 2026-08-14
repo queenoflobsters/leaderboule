@@ -1,10 +1,12 @@
+use std::str::FromStr;
+
 use dioxus::{fullstack::FullstackContext, logger::tracing::info, server::ServerFnError};
 use reqwest::header::HeaderMap;
 use serde::{Deserialize, Serialize};
 use surrealdb::{
     engine::remote::ws::{Client, Ws},
     opt::auth::Root,
-    types::{SurrealValue, Uuid},
+    types::{RecordId, RecordIdKey, SurrealValue, Uuid},
     Surreal,
 };
 use tokio::sync::OnceCell;
@@ -17,14 +19,59 @@ use crate::server::{
 
 pub static DB: OnceCell<Surreal<Client>> = OnceCell::const_new();
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, SurrealValue)]
-pub struct SessionToken(pub Uuid);
+#[derive(Debug, Serialize, Deserialize, Clone, SurrealValue)]
+pub struct SessionToken(pub RecordId);
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, SurrealValue)]
-pub struct UserId(pub Uuid);
+#[derive(Debug, Serialize, Deserialize, Clone, SurrealValue)]
+pub struct UserId(pub RecordId);
+
+impl SessionToken {
+    /// Create a new SessionToken with a Uuid v7
+    pub fn new_v7() -> Self {
+        Self(RecordId::new("sessions", Uuid::new_v7()))
+    }
+
+    pub fn to_uuid(&self) -> Result<Uuid, ServerFnError> {
+        match self.0.key {
+            RecordIdKey::Uuid(uuid) => Ok(uuid),
+            RecordIdKey::String(ref s) => Ok(s.parse().map_err(|e| ServerFnError::new(e))?),
+            _ => Err(ServerFnError::new("Unable to parse SessionToken into Uuid")),
+        }
+    }
+}
+
+impl FromStr for SessionToken {
+    // this is absolutly dreadful but honestly hilarous
+    // I couldn't get the uuid crate from a surrealdb re-export
+    // so I just converted it to a ServerFnError without even
+    // having access to the type
+    type Err = ServerFnError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(SessionToken(RecordId::new(
+            "session",
+            s.parse::<Uuid>()
+                .map_err(|e| ServerFnError::new(e.to_string()))?,
+        )))
+    }
+}
+
+impl UserId {
+    /// Create a new UserId with a Uuid v7
+    pub fn new_v7() -> Self {
+        Self(RecordId::new("users", Uuid::new_v7()))
+    }
+
+    // pub fn to_uuid(&self) -> Result<Uuid, ServerFnError> {
+    //     match self.0.key {
+    //         RecordIdKey::Uuid(uuid) => Ok(uuid),
+    //         RecordIdKey::String(ref s) => Ok(s.parse().map_err(|e| ServerFnError::new(e))?),
+    //         _ => Err(ServerFnError::new("Unable to parse UserId into Uuid")),
+    //     }
+    // }
+}
 
 /// Session database model
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, SurrealValue)]
+#[derive(Debug, Serialize, Deserialize, Clone, SurrealValue)]
 pub struct SessionRecord {
     pub session_token: SessionToken,
     pub user_id: UserId,
@@ -76,18 +123,18 @@ pub async fn get() -> &'static Surreal<Client> {
 /// Generate session and insert into SurrealDB
 pub async fn create_session_record(user_id: UserId) -> Result<SessionToken, ServerFnError> {
     // TODO MAKE THIS WITH UUID NOT EMAIL
-    let session_token = SessionToken(Uuid::new_v7());
+    let session_token = SessionToken::new_v7();
     let db = get().await;
     let expires_at = utils::current_time_secs() + utils::THIRTY_DAYS_IN_SECS;
 
     let session = SessionRecord {
-        session_token,
+        session_token: session_token.clone(),
         user_id,
         expires_at,
     };
 
     let _created: Option<SessionRecord> = db
-        .create(("sessions", session_token.0))
+        .create(&session_token.0)
         .content(session)
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?;
@@ -101,7 +148,7 @@ pub async fn delete_session_record() -> Result<(), ServerFnError> {
         if let Some(session_token) = auth::parse_session_token_cookie(&req_headers) {
             let _: Option<SessionRecord> = get()
                 .await
-                .delete(("sessions", session_token.0))
+                .delete(&session_token.0)
                 .await
                 .map_err(|e| ServerFnError::new(e.to_string()))?;
         }
@@ -116,7 +163,7 @@ pub async fn has_account_or_create(email: &str) -> Result<Option<UserId>, Server
     info!("AUTH : searching inside db for user with email `{}`", email);
     let db = get().await;
     let user_match: Option<UserRecord> = db
-        .query("SELECT *, <uuid>record::id(id) AS id FROM users WHERE email = $email")
+        .query("SELECT * FROM users WHERE email = $email")
         .bind(("email", email))
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?
@@ -163,7 +210,7 @@ async fn create_user_from_payer(payer: PayerInfo) -> Result<UserId, ServerFnErro
 
     let db = get().await;
 
-    let id = UserId(Uuid::new_v7());
+    let id = UserId::new_v7();
     let email = payer
         .email
         .ok_or(ServerFnError::new("Empty E-Mail field in helloasso answer"))?;
@@ -181,7 +228,7 @@ async fn create_user_from_payer(payer: PayerInfo) -> Result<UserId, ServerFnErro
     };
 
     let user_record = UserRecord {
-        id,
+        id: id.clone(),
         email,
         username,
         elo: elo::DEFAULT_ELO,
@@ -191,7 +238,7 @@ async fn create_user_from_payer(payer: PayerInfo) -> Result<UserId, ServerFnErro
 
     info!("DAB DAB DAB");
     let _created: Option<UserRecord> = db
-        .create(("users", id.0))
+        .create(&id.0)
         .content(user_record)
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?;

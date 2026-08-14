@@ -45,7 +45,7 @@ pub fn parse_session_token_cookie(headers: &HeaderMap) -> Option<SessionToken> {
         let mut parts = cookie.trim().splitn(2, '=');
         if let (Some(k), Some(v)) = (parts.next(), parts.next()) {
             if k == "session_token" {
-                return Some(SessionToken(v.parse().ok()?));
+                return Some(v.parse().ok()?);
             }
         }
     }
@@ -57,7 +57,7 @@ pub fn add_cookie_to_response(session_token: SessionToken) -> Result<(), ServerF
     // Generate cookie header directly
     let cookie_str = format!(
         "session_token={}; Path=/; HttpOnly; SameSite=Lax; Max-Age={}",
-        session_token.0, THIRTY_DAYS_IN_SECS
+        session_token.to_uuid()?, THIRTY_DAYS_IN_SECS
     );
 
     // Modify response headers via context
@@ -110,14 +110,14 @@ async fn is_cookie_authenticated(req: &HeaderMap) -> Option<SessionToken> {
     if let Some(session_token) = parse_session_token_cookie(req) {
         let db = db::get().await;
         let session_match: Option<db::SessionRecord> =
-            db.select(("sessions", session_token.0)).await.ok().flatten();
+            db.select(&session_token.0).await.ok().flatten();
         if let Some(session) = session_match {
             if session.expires_at > utils::current_time_secs() {
                 return Some(session.session_token);
             }
         } else {
             let _deleted: Option<db::SessionRecord> =
-                db.delete(("sessions", session_token.0)).await.ok().flatten();
+                db.delete(&session_token.0).await.ok().flatten();
         }
     }
     None
