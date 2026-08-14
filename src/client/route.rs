@@ -9,6 +9,8 @@ const MAIN_CSS: Asset = asset!("/assets/main.css");
 pub enum Route {
     #[route("/login")]
     Login,
+    #[route("/:..segments")]
+    PageNotFound { segments: Vec<String> },
 
     #[layout(Navbar)]
     #[route("/leaderboard")]
@@ -17,8 +19,6 @@ pub enum Route {
     Logout,
     #[route("/account")]
     Account, 
-    #[route("/:..segments")]
-    PageNotFound { segments: Vec<String> }
 
      // TODO make page not found
 }
@@ -35,8 +35,10 @@ impl Route {
     }
 
     pub fn is_public(&self) -> bool {
+        // I know about matches! I just don't like it
         match self {
             Route::Login => true,
+            Route::PageNotFound { .. } => true,
             _ => false,
         }
     }

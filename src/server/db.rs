@@ -1,4 +1,4 @@
-use dioxus::{fullstack::FullstackContext, server::ServerFnError};
+use dioxus::{fullstack::FullstackContext, logger::tracing::info, server::ServerFnError};
 use reqwest::header::HeaderMap;
 use serde::{Deserialize, Serialize};
 use surrealdb::{
@@ -10,7 +10,9 @@ use surrealdb::{
 use tokio::sync::OnceCell;
 
 use crate::server::{
-    auth, elo, helloasso::{self, PayerInfo}, utils
+    auth, elo,
+    helloasso::{self, PayerInfo},
+    utils,
 };
 
 pub static DB: OnceCell<Surreal<Client>> = OnceCell::const_new();
@@ -22,7 +24,7 @@ pub struct SessionToken(pub Uuid);
 pub struct UserId(pub Uuid);
 
 /// Session database model
-#[derive(Debug, Serialize, Deserialize, Clone, SurrealValue)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, SurrealValue)]
 pub struct SessionRecord {
     pub session_token: SessionToken,
     pub user_id: UserId,
@@ -62,6 +64,10 @@ pub async fn get() -> &'static Surreal<Client> {
             .use_db("leaderboule")
             .await
             .expect("Failed to select namespace/db");
+
+        db.query("DEFINE TABLE IF NOT EXISTS users")
+            .await
+            .expect("Failed to create table \"users\"");
         db
     })
     .await
@@ -81,7 +87,7 @@ pub async fn create_session_record(user_id: UserId) -> Result<SessionToken, Serv
     };
 
     let _created: Option<SessionRecord> = db
-        .create(("session", session_token.0.to_string()))
+        .create(("sessions", session_token.0))
         .content(session)
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?;
@@ -95,7 +101,7 @@ pub async fn delete_session_record() -> Result<(), ServerFnError> {
         if let Some(session_token) = auth::parse_session_token_cookie(&req_headers) {
             let _: Option<SessionRecord> = get()
                 .await
-                .delete(("session", session_token.0))
+                .delete(("sessions", session_token.0))
                 .await
                 .map_err(|e| ServerFnError::new(e.to_string()))?;
         }
@@ -107,33 +113,54 @@ pub async fn delete_session_record() -> Result<(), ServerFnError> {
 /// Returns the user id
 pub async fn has_account_or_create(email: &str) -> Result<Option<UserId>, ServerFnError> {
     // 1. Search inside the DB for user with this email
+    info!("AUTH : searching inside db for user with email `{}`", email);
     let db = get().await;
     let user_match: Option<UserRecord> = db
-        .query("SELECT * FROM user WHERE email = $email")
+        .query("SELECT *, <uuid>record::id(id) AS id FROM users WHERE email = $email")
         .bind(("email", email))
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?
         .take(0)
         .map_err(|e| ServerFnError::new(e.to_string()))?;
+    // let user_match = Some(UserRecord {
+    //     id: UserId(Uuid::max()),
+    //     email: "max@maximum.com".to_string(),
+    //     username: "Maxime Maximum".to_string(),
+    //     elo: 9999,
+    //     games_played: 1,
+    //     games_won: 1
+    // });
 
     if let Some(user) = user_match {
+        info!("AUTH : user found in db, returning user.id");
         return Ok(Some(user.id));
     }
 
     // 2. Search if they are registered in Helloasso
+    info!("AUTH : no user found in db");
+    info!("AUTH : asking Helloasso if this user is an adherent");
     let helloasso_payer = helloasso::get_adherent(email).await?;
 
     match helloasso_payer {
         // There is no adherent with this email
-        None => Ok(None),
+        None => {
+            info!("AUTH : Helloasso has no adherent with email `{}`", email);
+            info!("AUTH : connexion refused");
+            Ok(None)
+        }
         // 3. There is an adherent with this email
         // Create an account and return the user id
-        Some(payer) => Ok(Some(create_user_from_payer(payer).await?)),
+        Some(payer) => {
+            info!("AUTH : Helloasso has user with email `{}`", email);
+            Ok(Some(create_user_from_payer(payer).await?))
+        }
     }
 }
 
 /// Returns the user id
 async fn create_user_from_payer(payer: PayerInfo) -> Result<UserId, ServerFnError> {
+    info!("AUTH : creating user with : {:?}", &payer);
+
     let db = get().await;
 
     let id = UserId(Uuid::new_v7());
@@ -162,11 +189,17 @@ async fn create_user_from_payer(payer: PayerInfo) -> Result<UserId, ServerFnErro
         games_won: 0,
     };
 
+    info!("DAB DAB DAB");
     let _created: Option<UserRecord> = db
-        .create(("user", id.0))
+        .create(("users", id.0))
         .content(user_record)
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?;
+    info!("DAB DAB DAB DAB");
 
+    info!(
+        "AUTH : successfully created user inside db with id {:?}",
+        id
+    );
     Ok(id)
 }

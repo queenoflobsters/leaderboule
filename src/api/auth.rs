@@ -4,6 +4,11 @@ use dioxus::prelude::*;
 #[server]
 pub async fn login(email: String) -> Result<Result<(), String>, ServerFnError> {
     use crate::server::{auth, db};
+    if !email.contains('@') || !email.contains('.') {
+        return Ok(Err("Email invalide".to_string()));
+    }
+
+    info!("AUTH : user with email `{}` is trying to connect", email);
     
     if let Some(user_id) = db::has_account_or_create(&email).await? {
         let token = db::create_session_record(user_id).await?;

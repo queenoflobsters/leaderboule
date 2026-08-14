@@ -50,8 +50,10 @@ pub async fn get_adherent(email: &str) -> Result<Option<PayerInfo>, ServerFnErro
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?;
 
-    tracing::info!("{:?}", response);
-    Ok(response.aggregate_payers())
+    tracing::info!("AUTH : resposne : {:?}", response);
+    let agg = response.aggregate_payers(email);
+    tracing::info!("AUTH : aggregate_payers : {:?}", agg);
+    Ok(agg)
 }
 
 impl HelloassoClient {
@@ -154,11 +156,17 @@ pub struct PayerInfo {
 
 impl HelloassoResponse {
     /// This consumes the HelloassoResponse
-    fn aggregate_payers(self) -> Option<PayerInfo> {
+    fn aggregate_payers(self, email: &str) -> Option<PayerInfo> {
         let mut agg = PayerInfo::default();
 
         for HelloassoResponseDataItem { payer } in self.data {
-            agg.email = agg.email.or(payer.email);
+            if let Some(payer_email) = &payer.email {
+                if payer_email == email {
+                    agg.email = payer.email;
+                } else {
+                    continue;
+                }
+            }
             agg.first_name = agg.first_name.or(payer.first_name);
             agg.last_name = agg.last_name.or(payer.last_name);
         }

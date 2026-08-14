@@ -24,8 +24,8 @@ pub fn Login() -> Element {
                 Ok(Err(err)) => {
                     error_msg.set(Some(err));
                 }
-                Err(e) => {
-                    error_msg.set(Some(format!("Erreur serveur : {e}")));
+                Err(err) => {
+                    error_msg.set(Some(format!("SERVER ERROR > {}", err)));
                 }
             }
             is_loading.set(false);
