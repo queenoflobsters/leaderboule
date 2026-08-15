@@ -1,4 +1,5 @@
 pub mod auth;
+pub mod db;
 
 // TODO REMOVE
 pub mod dtos;

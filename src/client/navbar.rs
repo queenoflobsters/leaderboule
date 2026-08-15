@@ -1,4 +1,4 @@
-use crate::{client::route::Route};
+use crate::{api::db::current_user, client::route::Route};
 use dioxus::prelude::*;
 
 const NAVBAR_CSS: Asset = asset!("assets/navbar.css");
@@ -8,9 +8,13 @@ const ACCOUNT_SVG: Asset = asset!("assets/account.svg");
 
 #[component]
 pub fn Navbar() -> Element {
-    // Authentification management
-    // TODO WARNING WARN TODO
-    let username = "TODO TODO TODO";
+    let username_hook = use_server_future(current_user::get_username)?;
+    let username = match username_hook() {
+        Some(Ok(Some(username))) => username,
+        Some(Ok(None)) => "Invité".to_string(),
+        Some(Err(_)) => "ERREUR SERVEUR".to_string(),
+        None => "Chargement...".to_string()
+    };
     let mut is_open = use_signal(|| false);
     let current_route = use_route::<Route>();
     let on_link_click = move |_| {

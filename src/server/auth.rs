@@ -72,7 +72,7 @@ impl FromStr for SessionToken {
     type Err = ServerFnError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(SessionToken(RecordId::new(
-            "session",
+            "sessions",
             s.parse::<Uuid>()
                 .map_err(|e| ServerFnError::new(e.to_string()))?,
         )))
@@ -97,13 +97,13 @@ impl UserId {
 /// Session database model
 #[derive(Debug, Serialize, Deserialize, Clone, SurrealValue)]
 pub struct SessionRecord {
-    pub session_token: SessionToken,
+    pub id: SessionToken,
     pub user_id: UserId,
     pub expires_at: u64,
 }
 
 /// Helper function to parse session_token cookie from raw headers
-pub fn parse_session_token_cookie(headers: &HeaderMap) -> Option<SessionToken> {
+pub fn parse_session_token_from_cookie(headers: &HeaderMap) -> Option<SessionToken> {
     let cookie_header = headers.get(axum::http::header::COOKIE)?.to_str().ok()?;
     // Split by ';'
     for cookie in cookie_header.split(';') {
@@ -119,7 +119,7 @@ pub fn parse_session_token_cookie(headers: &HeaderMap) -> Option<SessionToken> {
 }
 
 /// Generate cookie header and modify response via context
-pub fn add_cookie_to_response(session_token: SessionToken) -> Result<(), ServerFnError> {
+pub fn create_cookie_in_response(session_token: SessionToken) -> Result<(), ServerFnError> {
     // Generate cookie header directly
     let cookie_str = format!(
         "session_token={}; Path=/; HttpOnly; SameSite=Lax; Max-Age={}",
@@ -128,11 +128,16 @@ pub fn add_cookie_to_response(session_token: SessionToken) -> Result<(), ServerF
     );
 
     // Modify response headers via context
-    let fullstack_ctx =
+    let ctx =
         FullstackContext::current().ok_or(ServerFnError::new("Unable to get FullstackContext"))?;
     let header_val =
         HeaderValue::from_str(&cookie_str).map_err(|e| ServerFnError::new(e.to_string()))?;
-    fullstack_ctx.add_response_header(SET_COOKIE, header_val);
+    ctx.add_response_header(SET_COOKIE, header_val);
+
+    debug!(
+        "AUTH : put session_token inside cookie : {:?}",
+        session_token
+    );
 
     Ok(())
 }
@@ -153,50 +158,41 @@ pub fn clear_cookie_from_response() -> Result<(), ServerFnError> {
 /// Axum Middleware: Populates AuthUser extension if cookie is valid.
 pub async fn server_auth_guard(mut req: Request, next: Next) -> Response {
     let path = req.uri().path();
+    debug!("GUARD : request to path : {}", path);
 
     // 1. Ignore public paths
-    if is_path_public(path) {
+    if is_static_asset(path) {
+        debug!("GUARD : static asset, forwarding request");
         return next.run(req).await;
     }
 
     // 2. Check for authentification
-    if let Some(session_token) = is_cookie_authenticated(req.headers()).await {
-        // Insert axum extension if authed
-        req.extensions_mut().insert(session_token);
-        return next.run(req).await;
-    }
-
-    // 3. Request is unauthenticated: redirect or send unauthorized based on request type
-    if is_page_navigation(req.headers(), req.method()) {
-        // Browser navigation: Recirect to Login page
-        Redirect::to(&Route::Login.to_string()).into_response()
-    } else {
-        Response::builder()
-            .status(StatusCode::UNAUTHORIZED)
-            .header(CONTENT_TYPE, "application/json")
-            .body(Body::from(
-                r#"{"error": "Unauthorized: Session token missing or expired"}"#,
-            ))
-            .unwrap()
-    }
-}
-
-async fn is_cookie_authenticated(headers: &HeaderMap) -> Option<SessionToken> {
-    if let Some(session_token) = parse_session_token_cookie(headers) {
-        let db = db::get().await;
-        let session_match: Option<SessionRecord> = db.select(&session_token.0).await.ok().flatten();
-        if let Some(session) = session_match {
-            if session.expires_at > utils::current_time_secs() {
-                return Some(session.session_token);
-            }
-        } else {
-            let _deleted: Option<SessionRecord> = db.delete(&session_token.0).await.ok().flatten();
+    debug!("GUARD : checking for auth");
+    if let Some(session_token) = parse_session_token_from_cookie(req.headers()) {
+        debug!(
+            "GUARD : session_token found in cookie : {:?}",
+            &session_token
+        );
+        if let Some(session_record) = get_session_record_from_db(&session_token).await {
+            // Insert axum extension if authed
+            debug!("GUARD : session_record found in db, inserting axum extension and forwarding request");
+            req.extensions_mut().insert(session_record);
+            return next.run(req).await;
         }
     }
-    None
+
+    // 3. Request is unauthenticated: redirect or forward based on navigation
+    let is_nav = is_page_navigation(req.headers(), req.method());
+    let route = Route::from_str(path).unwrap_or(Route::PageNotFound { segments: vec![] });
+    if is_nav && !route.is_public() {
+        return Redirect::to(&Route::Login.to_string()).into_response();
+
+    }
+    debug!("GUARD : public route, or api call, forwarding request");
+    next.run(req).await
 }
 
-fn is_path_public(path: &str) -> bool {
+fn is_static_asset(path: &str) -> bool {
     // 1. public assets and folders
     if path.starts_with("/public")
         || path.starts_with("/_dioxus")
@@ -214,13 +210,31 @@ fn is_path_public(path: &str) -> bool {
         }
     }
 
+    false
+
     // 3. Public routes
-    let route = Route::from_str(path).unwrap_or(Route::PageNotFound { segments: vec![] });
-    if route.is_public() {
-        return true;
+}
+
+async fn get_session_record_from_db(session_token: &SessionToken) -> Option<SessionRecord> {
+    let db = db::get().await;
+    let session_match: Option<SessionRecord> = db.select(&session_token.0).await.ok().flatten();
+    if let Some(session) = session_match {
+        debug!("AUTH : found session_record");
+        if session.expires_at > utils::current_time_secs() {
+            return Some(session);
+        } else {
+            debug!("AUTH : session_record is expired");
+            let _deleted: Option<SessionRecord> = db.delete(&session_token.0).await.ok().flatten();
+        }
     }
 
-    false
+    debug!("AUTH : did not found session_token in db");
+    None
+}
+
+pub fn get_session_record_extension() -> Option<SessionRecord> {
+    let ctx = FullstackContext::current()?;
+    ctx.extension::<SessionRecord>()
 }
 
 fn is_page_navigation(headers: &HeaderMap, method: &Method) -> bool {
@@ -257,31 +271,32 @@ pub async fn create_session_record(user_id: UserId) -> Result<SessionToken, Serv
     let expires_at = utils::current_time_secs() + utils::THIRTY_DAYS_IN_SECS;
 
     let session = SessionRecord {
-        session_token: session_token.clone(),
+        id: session_token.clone(),
         user_id,
         expires_at,
     };
 
     let _created: Option<SessionRecord> = db
         .create(&session_token.0)
-        .content(session)
+        .content(session.clone())
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?;
+
+    debug!("AUTH : created session record : {:?}", &session);
 
     Ok(session_token)
 }
 
 /// Get the session_token from the axum context and delete it from DB
 pub async fn delete_session_record() -> Result<(), ServerFnError> {
-    if let Ok(req_headers) = FullstackContext::extract::<HeaderMap, _>().await {
-        if let Some(session_token) = parse_session_token_cookie(&req_headers) {
-            let _: Option<SessionRecord> = db::get()
-                .await
-                .delete(&session_token.0)
-                .await
-                .map_err(|e| ServerFnError::new(e.to_string()))?;
-        }
-    }
+    let session_record = get_session_record_extension().ok_or(ServerFnError::new(
+        "Unable to get SessionRecord from FullstackCtx",
+    ))?;
+    let _deleted: Option<SessionRecord> = db::get()
+        .await
+        .delete(&session_record.id.0)
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))?;
 
     Ok(())
 }
@@ -289,7 +304,7 @@ pub async fn delete_session_record() -> Result<(), ServerFnError> {
 /// Returns the user id
 pub async fn has_account_or_create(email: &str) -> Result<Option<UserId>, ServerFnError> {
     // 1. Search inside the DB for user with this email
-    info!("AUTH : searching inside db for user with email `{}`", email);
+    debug!("AUTH : searching inside db for user with email `{}`", email);
     let db = db::get().await;
     let user_match: Option<db::UserRecord> = db
         .query("SELECT * FROM users WHERE email = $email")
@@ -300,26 +315,26 @@ pub async fn has_account_or_create(email: &str) -> Result<Option<UserId>, Server
         .map_err(|e| ServerFnError::new(e.to_string()))?;
 
     if let Some(user) = user_match {
-        info!("AUTH : user found in db, returning user.id");
+        debug!("AUTH : user found in db, returning user.id");
         return Ok(Some(user.id));
     }
 
     // 2. Search if they are registered in Helloasso
-    info!("AUTH : no user found in db");
-    info!("AUTH : asking Helloasso if this user is an adherent");
+    debug!("AUTH : no user found in db");
+    debug!("AUTH : asking Helloasso if this user is an adherent");
     let helloasso_payer = helloasso::get_adherent(email).await?;
 
     match helloasso_payer {
         // There is no adherent with this email
         None => {
-            info!("AUTH : Helloasso has no adherent with email `{}`", email);
-            info!("AUTH : connexion refused");
+            debug!("AUTH : Helloasso has no adherent with email `{}`", email);
+            debug!("AUTH : connexion refused");
             Ok(None)
         }
         // 3. There is an adherent with this email
         // Create an account and return the user id
         Some(payer) => {
-            info!("AUTH : Helloasso has user with email `{}`", email);
+            debug!("AUTH : Helloasso has user with email `{}`", email);
             Ok(Some(create_user_from_payer(payer).await?))
         }
     }
@@ -327,7 +342,7 @@ pub async fn has_account_or_create(email: &str) -> Result<Option<UserId>, Server
 
 /// Returns the user id
 async fn create_user_from_payer(payer: helloasso::PayerInfo) -> Result<UserId, ServerFnError> {
-    info!("AUTH : creating user with : {:?}", &payer);
+    debug!("AUTH : creating user with : {:?}", &payer);
 
     let db = db::get().await;
 
@@ -363,7 +378,7 @@ async fn create_user_from_payer(payer: helloasso::PayerInfo) -> Result<UserId, S
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?;
 
-    info!(
+    debug!(
         "AUTH : successfully created user inside db with id {:?}",
         id
     );

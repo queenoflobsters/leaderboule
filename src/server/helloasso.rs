@@ -41,7 +41,7 @@ pub async fn get_adherent(email: &str) -> Result<Option<PayerInfo>, ServerFnErro
         HELLOASSO_API_URL, ASSOCIATION_SLUG, ASSO_FORM_SLUG
     );
 
-    info!("HA : requesting payers list from Helloasso");
+    debug!("HA : requesting payers list from Helloasso");
 
     let response = get()
         .client
@@ -59,9 +59,9 @@ pub async fn get_adherent(email: &str) -> Result<Option<PayerInfo>, ServerFnErro
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?;
 
-    info!("HA : response : {:?}", response);
+    debug!("HA : response : {:?}", response);
     let agg = response.aggregate_payers(email);
-    info!("HA : aggregate_payers : {:?}", agg);
+    debug!("HA : aggregate_payers : {:?}", agg);
     Ok(agg)
 }
 
@@ -76,7 +76,7 @@ impl HelloassoClient {
     }
 
     async fn get_access_token(&self) -> Result<String, reqwest::Error> {
-        info!("HA : trying to read access_token");
+        debug!("HA : trying to read access_token");
 
         // added time for security
         let expire_instant = Instant::now() + Duration::from_secs(60);
@@ -85,15 +85,15 @@ impl HelloassoClient {
 
         match token_read_guard {
             Some(ref tokens) if tokens.expires_at > expire_instant => {
-                info!("HA : found access_token, returning");
+                debug!("HA : found access_token, returning");
                 Ok(tokens.access_token.clone())
             }
             Some(ref tokens) => {
-                info!("HA : access_token expired, requesting token refresh");
+                debug!("HA : access_token expired, requesting token refresh");
                 self.request_token_refresh(tokens).await
             }
             None => {
-                info!("HA : no access_token, requesting full access_token and refresh_token");
+                debug!("HA : no access_token, requesting full access_token and refresh_token");
                 self.request_access_token().await
             }
         }
@@ -121,7 +121,7 @@ impl HelloassoClient {
             refresh_token: res.refresh_token,
             expires_at: Instant::now() + Duration::from_secs(res.expires_in),
         });
-        info!("HA : successfully refreshed tokens");
+        debug!("HA : successfully refreshed tokens");
         Ok(res.access_token)
     }
 
@@ -145,7 +145,7 @@ impl HelloassoClient {
             refresh_token: res.refresh_token,
             expires_at: Instant::now() + Duration::from_secs(res.expires_in),
         });
-        info!("HA : successfully acquired access and refresh tokens");
+        debug!("HA : successfully acquired access and refresh tokens");
         Ok(res.access_token)
     }
 }

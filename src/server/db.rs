@@ -52,3 +52,4 @@ pub struct UserRecord {
     pub games_played: u64,
     pub games_won: u64,
 }
+
