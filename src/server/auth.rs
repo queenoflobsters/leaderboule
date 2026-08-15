@@ -1,27 +1,33 @@
 use crate::{
     client::route::Route,
     server::{
-        db, elo, helloasso, utils::{self, THIRTY_DAYS_IN_SECS}
+        db, elo, helloasso,
+        utils::{self, THIRTY_DAYS_IN_SECS},
     },
 };
 use dioxus::{
-    fullstack::{response::IntoResponse, FullstackContext, Redirect},
+    fullstack::{body::Body, response::IntoResponse, FullstackContext, Redirect},
     prelude::*,
     server::{
         axum::{
-            self, extract,
+            self,
+            extract::Request,
             http::{header::SET_COOKIE, HeaderValue},
-            middleware, response,
+            middleware::Next,
+            response::Response,
         },
         ServerFnError,
     },
 };
-use reqwest::header::HeaderMap;
+use reqwest::{
+    header::{HeaderMap, ACCEPT, CONTENT_TYPE},
+    Method,
+};
 use serde::{Deserialize, Serialize};
-use surrealdb::types::{RecordId, RecordIdKey, SurrealValue, Uuid};
 use std::str::FromStr;
+use surrealdb::types::{RecordId, RecordIdKey, SurrealValue, Uuid};
 
-// // may be useful sometimes
+// // may be useful someday
 // fn parse_cookie(headers: &HeaderMap, key: &str) -> Option<String> {
 //     let cookie_header = headers.get(axum::http::header::COOKIE)?.to_str().ok()?;
 //     // Split by ';'
@@ -117,7 +123,8 @@ pub fn add_cookie_to_response(session_token: SessionToken) -> Result<(), ServerF
     // Generate cookie header directly
     let cookie_str = format!(
         "session_token={}; Path=/; HttpOnly; SameSite=Lax; Max-Age={}",
-        session_token.to_uuid()?, THIRTY_DAYS_IN_SECS
+        session_token.to_uuid()?,
+        THIRTY_DAYS_IN_SECS
     );
 
     // Modify response headers via context
@@ -144,10 +151,7 @@ pub fn clear_cookie_from_response() -> Result<(), ServerFnError> {
 }
 
 /// Axum Middleware: Populates AuthUser extension if cookie is valid.
-pub async fn server_auth_guard(
-    mut req: extract::Request,
-    next: middleware::Next,
-) -> response::Response {
+pub async fn server_auth_guard(mut req: Request, next: Next) -> Response {
     let path = req.uri().path();
 
     // 1. Ignore public paths
@@ -162,22 +166,31 @@ pub async fn server_auth_guard(
         return next.run(req).await;
     }
 
-    // 3. Redirect if nor authed nor public
-    return Redirect::to(&Route::Login.to_string()).into_response();
+    // 3. Request is unauthenticated: redirect or send unauthorized based on request type
+    if is_page_navigation(req.headers(), req.method()) {
+        // Browser navigation: Recirect to Login page
+        Redirect::to(&Route::Login.to_string()).into_response()
+    } else {
+        Response::builder()
+            .status(StatusCode::UNAUTHORIZED)
+            .header(CONTENT_TYPE, "application/json")
+            .body(Body::from(
+                r#"{"error": "Unauthorized: Session token missing or expired"}"#,
+            ))
+            .unwrap()
+    }
 }
 
-async fn is_cookie_authenticated(req: &HeaderMap) -> Option<SessionToken> {
-    if let Some(session_token) = parse_session_token_cookie(req) {
+async fn is_cookie_authenticated(headers: &HeaderMap) -> Option<SessionToken> {
+    if let Some(session_token) = parse_session_token_cookie(headers) {
         let db = db::get().await;
-        let session_match: Option<SessionRecord> =
-            db.select(&session_token.0).await.ok().flatten();
+        let session_match: Option<SessionRecord> = db.select(&session_token.0).await.ok().flatten();
         if let Some(session) = session_match {
             if session.expires_at > utils::current_time_secs() {
                 return Some(session.session_token);
             }
         } else {
-            let _deleted: Option<SessionRecord> =
-                db.delete(&session_token.0).await.ok().flatten();
+            let _deleted: Option<SessionRecord> = db.delete(&session_token.0).await.ok().flatten();
         }
     }
     None
@@ -205,6 +218,33 @@ fn is_path_public(path: &str) -> bool {
     let route = Route::from_str(path).unwrap_or(Route::PageNotFound { segments: vec![] });
     if route.is_public() {
         return true;
+    }
+
+    false
+}
+
+fn is_page_navigation(headers: &HeaderMap, method: &Method) -> bool {
+    // 1. Sec-Fetch-Mode is "navigate" for full page loads / URL bar entries
+    if let Some(mode) = headers.get("sec-fetch-mode") {
+        if mode == "navigate" {
+            return true;
+        }
+    }
+
+    // 2. Sec-Fetch-Dest is "document" for HTML documents
+    if let Some(mode) = headers.get("sec-fetch-dest") {
+        if mode == "document" {
+            return true;
+        }
+    }
+
+    // 3. Fallback for older clients: GET requests asking for text/html
+    if method == Method::GET {
+        if let Some(accept) = headers.get(ACCEPT).and_then(|h| h.to_str().ok()) {
+            if accept.contains("text/html") {
+                return true;
+            }
+        }
     }
 
     false
