@@ -2,6 +2,10 @@ use crate::{
     client::route::Route,
     server::{db, elo, helloasso, utils},
 };
+use argon2::{
+    password_hash::{rand_core::OsRng, SaltString},
+    Argon2, PasswordHash, PasswordHasher, PasswordVerifier,
+};
 use dioxus::{
     fullstack::{response::IntoResponse, FullstackContext, Redirect},
     prelude::*,
@@ -21,18 +25,25 @@ use reqwest::{
     Method,
 };
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 use surrealdb::types::{RecordId, RecordIdKey, SurrealValue, Uuid};
 
 #[derive(Debug, Serialize, Deserialize, Clone, SurrealValue)]
+#[serde(transparent)]
 pub struct SessionToken(pub RecordId);
 
 #[derive(Debug, Serialize, Deserialize, Clone, SurrealValue)]
+#[serde(transparent)]
 pub struct UserId(pub RecordId);
+
+#[derive(Debug, Serialize, Deserialize, Clone, SurrealValue)]
+#[serde(transparent)]
+pub struct UserCredId(pub RecordId);
 
 impl SessionToken {
     /// Create a new SessionToken with a Uuid v7
     pub fn new_v7() -> Self {
-        Self(RecordId::new("sessions", Uuid::new_v7()))
+        Self(RecordId::new("session", Uuid::new_v7()))
     }
 
     pub fn to_uuid(&self) -> Result<Uuid, ServerFnError> {
@@ -49,7 +60,7 @@ impl std::str::FromStr for SessionToken {
     type Err = ServerFnError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(SessionToken(RecordId::new(
-            "sessions",
+            "session",
             s.parse::<Uuid>()
                 .map_err(|e| ServerFnError::new(e.to_string()))?,
         )))
@@ -57,12 +68,20 @@ impl std::str::FromStr for SessionToken {
 }
 
 impl UserId {
+    // pub fn new_v7() -> (UserId, UserCredId) { let uuid = Uuid::new_v7(); let user_id = UserId(RecordId::new("user", uuid)); let user_cred_id = UserCredId(RecordId::new("user_cred", uuid)); (user_id, user_cred_id) }
+    // pub fn to_uuid(&self) -> Result<Uuid, ServerFnError> { match self.0.key { RecordIdKey::Uuid(uuid) => Ok(uuid), RecordIdKey::String(ref s) => Ok(s.parse().map_err(|e| ServerFnError::new(e))?), _ => Err(ServerFnError::new("Unable to parse UserId into Uuid")), } }
     /// Create a new UserId with a Uuid v7
     pub fn new_v7() -> Self {
-        Self(RecordId::new("users", Uuid::new_v7()))
+        Self(RecordId::new("user", Uuid::new_v7()))
     }
+}
 
-    // pub fn to_uuid(&self) -> Result<Uuid, ServerFnError> { match self.0.key { RecordIdKey::Uuid(uuid) => Ok(uuid), RecordIdKey::String(ref s) => Ok(s.parse().map_err(|e| ServerFnError::new(e))?), _ => Err(ServerFnError::new("Unable to parse UserId into Uuid")), } }
+// impl From<UserId> for UserCredId { fn from(value: UserId) -> Self { Self(RecordId::new("user_cred", value.0.key)) } }
+impl UserCredId {
+    /// Create a new UserId with a Uuid v7
+    pub fn new_v7() -> Self {
+        Self(RecordId::new("user_cred", Uuid::new_v7()))
+    }
 }
 
 /// Session database model
@@ -71,6 +90,20 @@ pub struct SessionRecord {
     pub id: SessionToken,
     pub user_id: UserId,
     pub expires_at: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, SurrealValue)]
+pub struct UserCredRecord {
+    pub id: UserCredId,
+    pub user_id: UserId,
+    pub password_hash: String,
+}
+
+pub enum UserAuthTry {
+    Success(UserId),
+    NonexistentCredentials(UserId),
+    WrongPassword,
+    NonexistentAccount,
 }
 
 pub mod session {
@@ -130,7 +163,6 @@ pub mod session {
     }
     /// Generate session and insert into SurrealDB
     pub async fn create(user_id: UserId) -> Result<SessionToken, ServerFnError> {
-        // TODO MAKE THIS WITH UUID NOT EMAIL
         let session_token = SessionToken::new_v7();
         let db = db::get().await;
         let expires_at = utils::current_time_secs() + utils::THIRTY_DAYS_IN_SECS;
@@ -195,7 +227,6 @@ pub mod cookie {
 }
 
 pub mod middleware {
-    use std::str::FromStr;
 
     use super::*;
 
@@ -291,49 +322,73 @@ pub mod account {
 
     /// Returns the user id
     /// 1. Search inside the DB for user with this email
-    pub async fn exists_or_create(email: &str) -> Result<Option<UserId>, ServerFnError> {
+    pub async fn exists(email: &str, password: &str) -> Result<UserAuthTry, ServerFnError> {
         debug!("AUTH : searching inside db for user with email `{}`", email);
         let db = db::get().await;
+
         let user_match: Option<db::UserRecord> = db
-            .query("SELECT * FROM users WHERE email = $email")
+            .query("SELECT * FROM user WHERE email = $email")
             .bind(("email", email))
             .await
             .map_err(|e| ServerFnError::new(e.to_string()))?
             .take(0)
             .map_err(|e| ServerFnError::new(e.to_string()))?;
 
-        if let Some(user) = user_match {
-            debug!("AUTH : user found in db, returning user.id");
-            return Ok(Some(user.id));
-        }
+        let Some(user_record) = user_match else {
+            debug!("AUTH : user not found in db");
+            return Ok(UserAuthTry::NonexistentAccount);
+        };
+        debug!("AUTH : user found in db");
+        let user_cred_record_match: Option<UserCredRecord> = db
+            .query("SELECT * FROM ONLY user_cred WHERE user_id = $user_id")
+            .bind(("user_id", user_record.id.clone()))
+            .await
+            .map_err(|e| ServerFnError::new(e.to_string()))?
+            .take(0)
+            .map_err(|e| ServerFnError::new(e.to_string()))?;
 
-        debug!("AUTH : no user found in db");
-        Ok(None)
+        let Some(user_cred_record) = user_cred_record_match else {
+            return Ok(UserAuthTry::NonexistentCredentials(user_record.id));
+        };
+
+        match password::verify(password, &user_cred_record.password_hash) {
+            true => {
+                debug!("AUTH : passwords matching");
+                Ok(UserAuthTry::Success(user_record.id))
+            }
+            false => {
+                debug!("AUTH : passwords are not matching");
+                Ok(UserAuthTry::WrongPassword)
+            }
+        }
     }
 
     /// 2. Search if they are registered in Helloasso
-    pub async fn try_create(email: &str) -> Result<Option<UserId>, ServerFnError> {
-        debug!("AUTH : asking Helloasso if this user is an adherent");
+    pub async fn try_create(email: &str, password: &str) -> Result<Option<UserId>, ServerFnError> {
+        debug!("AUTH : asking Helloasso if `{}` is an adherent", email);
         let helloasso_payer = helloasso::get_adherent(email).await?;
 
         match helloasso_payer {
             // There is no adherent with this email
             None => {
-                debug!("AUTH : Helloasso has no adherent with email `{}`", email);
-                debug!("AUTH : connexion refused");
+                debug!("AUTH : Helloasso has no adherent with this email, connexion refused");
                 Ok(None)
             }
             // 3. There is an adherent with this email
             // Create an account and return the user id
             Some(payer) => {
                 debug!("AUTH : Helloasso has user with email `{}`", email);
-                Ok(Some(create_from_payer(payer).await?))
+                let user_id = create_user(payer).await?;
+                create_credentials(&user_id, password)
+                    .await?
+                    .map_err(|s| ServerFnError::new(s))?;
+                Ok(Some(user_id))
             }
         }
     }
 
     /// Returns the user id
-    async fn create_from_payer(payer: helloasso::PayerInfo) -> Result<UserId, ServerFnError> {
+    async fn create_user(payer: helloasso::PayerInfo) -> Result<UserId, ServerFnError> {
         debug!("AUTH : creating user with : {:?}", &payer);
 
         let db = db::get().await;
@@ -375,5 +430,56 @@ pub mod account {
             id
         );
         Ok(id)
+    }
+
+    pub async fn create_credentials(
+        user_id: &UserId,
+        password: &str,
+    ) -> Result<Result<(), String>, ServerFnError> {
+        if password.len() < 8 {
+            return Ok(Err("Mot de passe trop court".to_string()));
+        }
+        let db = db::get().await;
+        let user_cred_id = UserCredId::new_v7();
+        let password_hash = password::create_hash(password)?;
+        let user_cred_record = UserCredRecord {
+            id: user_cred_id.clone(),
+            user_id: user_id.clone(),
+            password_hash,
+        };
+
+        let _created: Option<UserCredRecord> = db
+            .create(&user_cred_id.0)
+            .content(user_cred_record)
+            .await
+            .map_err(|e| ServerFnError::new(e.to_string()))?;
+
+        Ok(Ok(()))
+    }
+}
+
+pub mod password {
+    use super::*;
+
+    pub fn create_hash(password: &str) -> Result<String, ServerFnError> {
+        let salt = SaltString::generate(&mut OsRng);
+
+        let argon2 = Argon2::default();
+
+        let password_hash = argon2
+            .hash_password(password.as_bytes(), &salt)
+            .map_err(|e| ServerFnError::new(e.to_string()))?;
+
+        Ok(password_hash.to_string())
+    }
+
+    pub fn verify(password: &str, stored_hash: &str) -> bool {
+        let Ok(parsed_hash) = PasswordHash::new(stored_hash) else {
+            return false;
+        };
+
+        Argon2::default()
+            .verify_password(password.as_bytes(), &parsed_hash)
+            .is_ok()
     }
 }

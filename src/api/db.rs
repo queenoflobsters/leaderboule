@@ -71,7 +71,7 @@ pub mod global {
         }
         let db = db::get().await;
         let records: Vec<db::UserRecord> = db
-            .query("SELECT * FROM users ORDER BY elo DESC LIMIT $limit START $start")
+            .query("SELECT * FROM user ORDER BY elo DESC LIMIT $limit START $start")
             .bind(("limit", page_size))
             .bind(("start", page * page_size))
             .await

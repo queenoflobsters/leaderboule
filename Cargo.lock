@@ -3052,6 +3052,7 @@ dependencies = [
 name = "leaderboule"
 version = "0.1.0"
 dependencies = [
+ "argon2",
  "dioxus",
  "dotenvy",
  "reqwest 0.13.4",
