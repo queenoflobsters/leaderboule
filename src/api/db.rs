@@ -6,7 +6,7 @@ pub mod current_user {
     #[server]
     pub async fn get_username() -> Result<Option<String>, ServerFnError> {
         use crate::server::{auth, db};
-        if let Some(session_record) = auth::get_session_record_extension() {
+        if let Some(session_record) = auth::session::get_from_extension() {
             let db = db::get().await;
             let username: Option<String> = db
                 .query("SELECT VALUE username FROM ONLY $user_id")

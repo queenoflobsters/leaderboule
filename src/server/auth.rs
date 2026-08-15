@@ -1,12 +1,9 @@
 use crate::{
     client::route::Route,
-    server::{
-        db, elo, helloasso,
-        utils::{self, THIRTY_DAYS_IN_SECS},
-    },
+    server::{db, elo, helloasso, utils},
 };
 use dioxus::{
-    fullstack::{body::Body, response::IntoResponse, FullstackContext, Redirect},
+    fullstack::{response::IntoResponse, FullstackContext, Redirect},
     prelude::*,
     server::{
         axum::{
@@ -20,28 +17,11 @@ use dioxus::{
     },
 };
 use reqwest::{
-    header::{HeaderMap, ACCEPT, CONTENT_TYPE},
+    header::{HeaderMap, ACCEPT},
     Method,
 };
 use serde::{Deserialize, Serialize};
-use std::str::FromStr;
 use surrealdb::types::{RecordId, RecordIdKey, SurrealValue, Uuid};
-
-// // may be useful someday
-// fn parse_cookie(headers: &HeaderMap, key: &str) -> Option<String> {
-//     let cookie_header = headers.get(axum::http::header::COOKIE)?.to_str().ok()?;
-//     // Split by ';'
-//     for cookie in cookie_header.split(';') {
-//         // Split by '=' in two parts
-//         let mut parts = cookie.trim().splitn(2, '=');
-//         if let (Some(k), Some(v)) = (parts.next(), parts.next()) {
-//             if k == key {
-//                 return Some(SessionToken(v.parse().ok()?));
-//             }
-//         }
-//     }
-//     None
-// }
 
 #[derive(Debug, Serialize, Deserialize, Clone, SurrealValue)]
 pub struct SessionToken(pub RecordId);
@@ -64,11 +44,8 @@ impl SessionToken {
     }
 }
 
-impl FromStr for SessionToken {
-    // this is absolutly dreadful but honestly hilarous
-    // I couldn't get the uuid crate from a surrealdb re-export
-    // so I just converted it to a ServerFnError without even
-    // having access to the type
+impl std::str::FromStr for SessionToken {
+    // this is absolutly dreadful but honestly hilarous I couldn't get the uuid crate from a surrealdb re-export so I just converted it to a ServerFnError without even having access to the type
     type Err = ServerFnError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(SessionToken(RecordId::new(
@@ -85,13 +62,7 @@ impl UserId {
         Self(RecordId::new("users", Uuid::new_v7()))
     }
 
-    // pub fn to_uuid(&self) -> Result<Uuid, ServerFnError> {
-    //     match self.0.key {
-    //         RecordIdKey::Uuid(uuid) => Ok(uuid),
-    //         RecordIdKey::String(ref s) => Ok(s.parse().map_err(|e| ServerFnError::new(e))?),
-    //         _ => Err(ServerFnError::new("Unable to parse UserId into Uuid")),
-    //     }
-    // }
+    // pub fn to_uuid(&self) -> Result<Uuid, ServerFnError> { match self.0.key { RecordIdKey::Uuid(uuid) => Ok(uuid), RecordIdKey::String(ref s) => Ok(s.parse().map_err(|e| ServerFnError::new(e))?), _ => Err(ServerFnError::new("Unable to parse UserId into Uuid")), } }
 }
 
 /// Session database model
@@ -102,285 +73,307 @@ pub struct SessionRecord {
     pub expires_at: u64,
 }
 
-/// Helper function to parse session_token cookie from raw headers
-pub fn parse_session_token_from_cookie(headers: &HeaderMap) -> Option<SessionToken> {
-    let cookie_header = headers.get(axum::http::header::COOKIE)?.to_str().ok()?;
-    // Split by ';'
-    for cookie in cookie_header.split(';') {
-        // Split by '=' in two parts
-        let mut parts = cookie.trim().splitn(2, '=');
-        if let (Some(k), Some(v)) = (parts.next(), parts.next()) {
-            if k == "session_token" {
-                return Some(v.parse().ok()?);
+pub mod session {
+    use super::*;
+
+    /// Helper functiparse_session_token_from_cookieon to parse session_token cookie from raw headers
+    pub fn parse_token_from_cookie(headers: &HeaderMap) -> Option<SessionToken> {
+        let cookie_header = headers.get(axum::http::header::COOKIE)?.to_str().ok()?;
+        // Split by ';'
+        for cookie in cookie_header.split(';') {
+            // Split by '=' in two parts
+            let mut parts = cookie.trim().splitn(2, '=');
+            if let (Some(k), Some(v)) = (parts.next(), parts.next()) {
+                if k == "session_token" {
+                    return Some(v.parse().ok()?);
+                }
             }
         }
+        None
     }
-    None
-}
 
-/// Generate cookie header and modify response via context
-pub fn create_cookie_in_response(session_token: SessionToken) -> Result<(), ServerFnError> {
-    // Generate cookie header directly
-    let cookie_str = format!(
-        "session_token={}; Path=/; HttpOnly; SameSite=Lax; Max-Age={}",
-        session_token.to_uuid()?,
-        THIRTY_DAYS_IN_SECS
-    );
+    /// Get the session_token from the axum context and delete it from DB
+    pub async fn delete() -> Result<(), ServerFnError> {
+        let session_record = get_from_extension().ok_or(ServerFnError::new(
+            "Unable to get SessionRecord from FullstackCtx",
+        ))?;
+        let _deleted: Option<SessionRecord> = db::get()
+            .await
+            .delete(&session_record.id.0)
+            .await
+            .map_err(|e| ServerFnError::new(e.to_string()))?;
 
-    // Modify response headers via context
-    let ctx =
-        FullstackContext::current().ok_or(ServerFnError::new("Unable to get FullstackContext"))?;
-    let header_val =
-        HeaderValue::from_str(&cookie_str).map_err(|e| ServerFnError::new(e.to_string()))?;
-    ctx.add_response_header(SET_COOKIE, header_val);
+        Ok(())
+    }
 
-    debug!(
-        "AUTH : put session_token inside cookie : {:?}",
-        session_token
-    );
-
-    Ok(())
-}
-
-/// Expire cookie by generating clear one
-pub fn clear_cookie_from_response() -> Result<(), ServerFnError> {
-    let clear_cookie = "session_token=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0";
-
-    if let Some(ctx) = FullstackContext::current() {
-        if let Ok(val) = HeaderValue::from_str(&clear_cookie) {
-            ctx.add_response_header(SET_COOKIE, val);
+    pub async fn get_from_db(session_token: &SessionToken) -> Option<SessionRecord> {
+        let db = db::get().await;
+        let session_match: Option<SessionRecord> = db.select(&session_token.0).await.ok().flatten();
+        if let Some(session) = session_match {
+            debug!("AUTH : found session_record");
+            if session.expires_at > utils::current_time_secs() {
+                return Some(session);
+            } else {
+                debug!("AUTH : session_record is expired");
+                let _deleted: Option<SessionRecord> =
+                    db.delete(&session_token.0).await.ok().flatten();
+            }
         }
+
+        debug!("AUTH : did not found session_token in db");
+        None
     }
 
-    Ok(())
+    pub fn get_from_extension() -> Option<SessionRecord> {
+        let ctx = FullstackContext::current()?;
+        ctx.extension::<SessionRecord>()
+    }
+    /// Generate session and insert into SurrealDB
+    pub async fn create(user_id: UserId) -> Result<SessionToken, ServerFnError> {
+        // TODO MAKE THIS WITH UUID NOT EMAIL
+        let session_token = SessionToken::new_v7();
+        let db = db::get().await;
+        let expires_at = utils::current_time_secs() + utils::THIRTY_DAYS_IN_SECS;
+
+        let session = SessionRecord {
+            id: session_token.clone(),
+            user_id,
+            expires_at,
+        };
+
+        let _created: Option<SessionRecord> = db
+            .create(&session_token.0)
+            .content(session.clone())
+            .await
+            .map_err(|e| ServerFnError::new(e.to_string()))?;
+
+        debug!("AUTH : created session record : {:?}", &session);
+
+        Ok(session_token)
+    }
 }
 
-/// Axum Middleware: Populates AuthUser extension if cookie is valid.
-pub async fn server_auth_guard(mut req: Request, next: Next) -> Response {
-    let path = req.uri().path();
-    debug!("GUARD : request to path : {}", path);
+pub mod cookie {
+    use super::*;
 
-    // 1. Ignore public paths
-    if is_static_asset(path) {
-        debug!("GUARD : static asset, forwarding request");
-        return next.run(req).await;
+    /// Generate cookie header and modify response via context
+    pub fn create_in_response(session_token: SessionToken) -> Result<(), ServerFnError> {
+        // Generate cookie header directly
+        let cookie_str = format!(
+            "session_token={}; Path=/; HttpOnly; SameSite=Lax; Max-Age={}",
+            session_token.to_uuid()?,
+            utils::THIRTY_DAYS_IN_SECS
+        );
+
+        // Modify response headers via context
+        let ctx = FullstackContext::current()
+            .ok_or(ServerFnError::new("Unable to get FullstackContext"))?;
+        let header_val =
+            HeaderValue::from_str(&cookie_str).map_err(|e| ServerFnError::new(e.to_string()))?;
+        ctx.add_response_header(SET_COOKIE, header_val);
+
+        debug!(
+            "AUTH : put session_token inside cookie : {:?}",
+            session_token
+        );
+
+        Ok(())
     }
 
-    // 2. Check for authentification
-    debug!("GUARD : checking for auth");
-    if let Some(session_token) = parse_session_token_from_cookie(req.headers()) {
-        debug!(
-            "GUARD : session_token found in cookie : {:?}",
-            &session_token
-        );
-        if let Some(session_record) = get_session_record_from_db(&session_token).await {
-            // Insert axum extension if authed
-            debug!("GUARD : session_record found in db, inserting axum extension and forwarding request");
-            req.extensions_mut().insert(session_record);
+    /// Expire cookie by generating clear one
+    pub fn clear_from_response() -> Result<(), ServerFnError> {
+        let clear_cookie = "session_token=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0";
+
+        if let Some(ctx) = FullstackContext::current() {
+            if let Ok(val) = HeaderValue::from_str(&clear_cookie) {
+                ctx.add_response_header(SET_COOKIE, val);
+            }
+        }
+
+        Ok(())
+    }
+}
+
+pub mod middleware {
+    use std::str::FromStr;
+
+    use super::*;
+
+    /// Axum Middleware: Populates AuthUser extension if cookie is valid.
+    pub async fn server_auth_guard(mut req: Request, next: Next) -> Response {
+        let path = req.uri().path();
+        debug!("GUARD : request to path : {}", path);
+
+        // 1. Ignore public paths
+        if is_static_asset(path) {
+            debug!("GUARD : static asset, forwarding request");
             return next.run(req).await;
         }
+
+        // 2. Check for authentification
+        debug!("GUARD : checking for auth");
+        if let Some(session_token) = session::parse_token_from_cookie(req.headers()) {
+            debug!(
+                "GUARD : session_token found in cookie : {:?}",
+                &session_token
+            );
+            if let Some(session_record) = session::get_from_db(&session_token).await {
+                // Insert axum extension if authed
+                debug!("GUARD : session_record found in db, inserting axum extension and forwarding request");
+                req.extensions_mut().insert(session_record);
+                return next.run(req).await;
+            }
+        }
+
+        // 3. Request is unauthenticated: redirect or forward based on navigation
+        let is_nav = is_page_navigation(req.headers(), req.method());
+        let route = Route::from_str(path).unwrap_or(Route::PageNotFound { segments: vec![] });
+        if is_nav && !route.is_public() {
+            return Redirect::to(&Route::Login.to_string()).into_response();
+        }
+        debug!("GUARD : public route, or api call, forwarding request");
+        next.run(req).await
     }
 
-    // 3. Request is unauthenticated: redirect or forward based on navigation
-    let is_nav = is_page_navigation(req.headers(), req.method());
-    let route = Route::from_str(path).unwrap_or(Route::PageNotFound { segments: vec![] });
-    if is_nav && !route.is_public() {
-        return Redirect::to(&Route::Login.to_string()).into_response();
-
-    }
-    debug!("GUARD : public route, or api call, forwarding request");
-    next.run(req).await
-}
-
-fn is_static_asset(path: &str) -> bool {
-    // 1. public assets and folders
-    if path.starts_with("/public")
-        || path.starts_with("/_dioxus")
-        || path.starts_with("/assets")
-        || path.starts_with("/wasm")
-    {
-        return true;
-    }
-
-    // 2. Any path ending in a file extension
-    // (This seem to be a horrible hack but it is what internet recommends...)
-    if let Some(filename) = path.split('/').last() {
-        if filename.contains('.') {
+    fn is_static_asset(path: &str) -> bool {
+        // 1. public assets and folders
+        if path.starts_with("/public")
+            || path.starts_with("/_dioxus")
+            || path.starts_with("/assets")
+            || path.starts_with("/wasm")
+        {
             return true;
         }
-    }
 
-    false
-
-    // 3. Public routes
-}
-
-async fn get_session_record_from_db(session_token: &SessionToken) -> Option<SessionRecord> {
-    let db = db::get().await;
-    let session_match: Option<SessionRecord> = db.select(&session_token.0).await.ok().flatten();
-    if let Some(session) = session_match {
-        debug!("AUTH : found session_record");
-        if session.expires_at > utils::current_time_secs() {
-            return Some(session);
-        } else {
-            debug!("AUTH : session_record is expired");
-            let _deleted: Option<SessionRecord> = db.delete(&session_token.0).await.ok().flatten();
-        }
-    }
-
-    debug!("AUTH : did not found session_token in db");
-    None
-}
-
-pub fn get_session_record_extension() -> Option<SessionRecord> {
-    let ctx = FullstackContext::current()?;
-    ctx.extension::<SessionRecord>()
-}
-
-fn is_page_navigation(headers: &HeaderMap, method: &Method) -> bool {
-    // 1. Sec-Fetch-Mode is "navigate" for full page loads / URL bar entries
-    if let Some(mode) = headers.get("sec-fetch-mode") {
-        if mode == "navigate" {
-            return true;
-        }
-    }
-
-    // 2. Sec-Fetch-Dest is "document" for HTML documents
-    if let Some(mode) = headers.get("sec-fetch-dest") {
-        if mode == "document" {
-            return true;
-        }
-    }
-
-    // 3. Fallback for older clients: GET requests asking for text/html
-    if method == Method::GET {
-        if let Some(accept) = headers.get(ACCEPT).and_then(|h| h.to_str().ok()) {
-            if accept.contains("text/html") {
+        // 2. Any path ending in a file extension
+        // (This seem to be a horrible hack but it is what internet recommends...)
+        if let Some(filename) = path.split('/').last() {
+            if filename.contains('.') {
                 return true;
             }
         }
+
+        false
+
+        // 3. Public routes
     }
 
-    false
-}
-/// Generate session and insert into SurrealDB
-pub async fn create_session_record(user_id: UserId) -> Result<SessionToken, ServerFnError> {
-    // TODO MAKE THIS WITH UUID NOT EMAIL
-    let session_token = SessionToken::new_v7();
-    let db = db::get().await;
-    let expires_at = utils::current_time_secs() + utils::THIRTY_DAYS_IN_SECS;
-
-    let session = SessionRecord {
-        id: session_token.clone(),
-        user_id,
-        expires_at,
-    };
-
-    let _created: Option<SessionRecord> = db
-        .create(&session_token.0)
-        .content(session.clone())
-        .await
-        .map_err(|e| ServerFnError::new(e.to_string()))?;
-
-    debug!("AUTH : created session record : {:?}", &session);
-
-    Ok(session_token)
-}
-
-/// Get the session_token from the axum context and delete it from DB
-pub async fn delete_session_record() -> Result<(), ServerFnError> {
-    let session_record = get_session_record_extension().ok_or(ServerFnError::new(
-        "Unable to get SessionRecord from FullstackCtx",
-    ))?;
-    let _deleted: Option<SessionRecord> = db::get()
-        .await
-        .delete(&session_record.id.0)
-        .await
-        .map_err(|e| ServerFnError::new(e.to_string()))?;
-
-    Ok(())
-}
-
-/// Returns the user id
-pub async fn has_account_or_create(email: &str) -> Result<Option<UserId>, ServerFnError> {
-    // 1. Search inside the DB for user with this email
-    debug!("AUTH : searching inside db for user with email `{}`", email);
-    let db = db::get().await;
-    let user_match: Option<db::UserRecord> = db
-        .query("SELECT * FROM users WHERE email = $email")
-        .bind(("email", email))
-        .await
-        .map_err(|e| ServerFnError::new(e.to_string()))?
-        .take(0)
-        .map_err(|e| ServerFnError::new(e.to_string()))?;
-
-    if let Some(user) = user_match {
-        debug!("AUTH : user found in db, returning user.id");
-        return Ok(Some(user.id));
-    }
-
-    // 2. Search if they are registered in Helloasso
-    debug!("AUTH : no user found in db");
-    debug!("AUTH : asking Helloasso if this user is an adherent");
-    let helloasso_payer = helloasso::get_adherent(email).await?;
-
-    match helloasso_payer {
-        // There is no adherent with this email
-        None => {
-            debug!("AUTH : Helloasso has no adherent with email `{}`", email);
-            debug!("AUTH : connexion refused");
-            Ok(None)
-        }
-        // 3. There is an adherent with this email
-        // Create an account and return the user id
-        Some(payer) => {
-            debug!("AUTH : Helloasso has user with email `{}`", email);
-            Ok(Some(create_user_from_payer(payer).await?))
-        }
-    }
-}
-
-/// Returns the user id
-async fn create_user_from_payer(payer: helloasso::PayerInfo) -> Result<UserId, ServerFnError> {
-    debug!("AUTH : creating user with : {:?}", &payer);
-
-    let db = db::get().await;
-
-    let id = UserId::new_v7();
-    let email = payer
-        .email
-        .ok_or(ServerFnError::new("Empty E-Mail field in helloasso answer"))?;
-    let username = {
-        match (payer.first_name, payer.last_name) {
-            (None, None) => {
-                let mut name_id = Uuid::new_v4().to_string();
-                name_id.truncate(8);
-                format!("Anonyme {name_id}")
+    fn is_page_navigation(headers: &HeaderMap, method: &Method) -> bool {
+        // 1. Sec-Fetch-Mode is "navigate" for full page loads / URL bar entries
+        if let Some(mode) = headers.get("sec-fetch-mode") {
+            if mode == "navigate" {
+                return true;
             }
-            (Some(first), None) => first,
-            (None, Some(last)) => format!("Humain {last}"),
-            (Some(first), Some(last)) => format!("{first} {last}"),
         }
-    };
 
-    let user_record = db::UserRecord {
-        id: id.clone(),
-        email,
-        username,
-        elo: elo::DEFAULT_ELO,
-        games_played: 0,
-        games_won: 0,
-    };
+        // 2. Sec-Fetch-Dest is "document" for HTML documents
+        if let Some(mode) = headers.get("sec-fetch-dest") {
+            if mode == "document" {
+                return true;
+            }
+        }
 
-    let _created: Option<db::UserRecord> = db
-        .create(&id.0)
-        .content(user_record)
-        .await
-        .map_err(|e| ServerFnError::new(e.to_string()))?;
+        // 3. Fallback for older clients: GET requests asking for text/html
+        if method == Method::GET {
+            if let Some(accept) = headers.get(ACCEPT).and_then(|h| h.to_str().ok()) {
+                if accept.contains("text/html") {
+                    return true;
+                }
+            }
+        }
 
-    debug!(
-        "AUTH : successfully created user inside db with id {:?}",
-        id
-    );
-    Ok(id)
+        false
+    }
+}
+
+pub mod account {
+    use super::*;
+
+    /// Returns the user id
+    /// 1. Search inside the DB for user with this email
+    pub async fn exists_or_create(email: &str) -> Result<Option<UserId>, ServerFnError> {
+        debug!("AUTH : searching inside db for user with email `{}`", email);
+        let db = db::get().await;
+        let user_match: Option<db::UserRecord> = db
+            .query("SELECT * FROM users WHERE email = $email")
+            .bind(("email", email))
+            .await
+            .map_err(|e| ServerFnError::new(e.to_string()))?
+            .take(0)
+            .map_err(|e| ServerFnError::new(e.to_string()))?;
+
+        if let Some(user) = user_match {
+            debug!("AUTH : user found in db, returning user.id");
+            return Ok(Some(user.id));
+        }
+
+        debug!("AUTH : no user found in db");
+        Ok(None)
+    }
+
+    /// 2. Search if they are registered in Helloasso
+    pub async fn try_create(email: &str) -> Result<Option<UserId>, ServerFnError> {
+        debug!("AUTH : asking Helloasso if this user is an adherent");
+        let helloasso_payer = helloasso::get_adherent(email).await?;
+
+        match helloasso_payer {
+            // There is no adherent with this email
+            None => {
+                debug!("AUTH : Helloasso has no adherent with email `{}`", email);
+                debug!("AUTH : connexion refused");
+                Ok(None)
+            }
+            // 3. There is an adherent with this email
+            // Create an account and return the user id
+            Some(payer) => {
+                debug!("AUTH : Helloasso has user with email `{}`", email);
+                Ok(Some(create_from_payer(payer).await?))
+            }
+        }
+    }
+
+    /// Returns the user id
+    async fn create_from_payer(payer: helloasso::PayerInfo) -> Result<UserId, ServerFnError> {
+        debug!("AUTH : creating user with : {:?}", &payer);
+
+        let db = db::get().await;
+
+        let id = UserId::new_v7();
+        let email = payer
+            .email
+            .ok_or(ServerFnError::new("Empty E-Mail field in helloasso answer"))?;
+        let username = {
+            match (payer.first_name, payer.last_name) {
+                (None, None) => {
+                    let mut name_id = Uuid::new_v4().to_string();
+                    name_id.truncate(8);
+                    format!("Anonyme {name_id}")
+                }
+                (Some(first), None) => first,
+                (None, Some(last)) => format!("Humain {last}"),
+                (Some(first), Some(last)) => format!("{first} {last}"),
+            }
+        };
+
+        let user_record = db::UserRecord {
+            id: id.clone(),
+            email,
+            username,
+            elo: elo::DEFAULT_ELO,
+            games_played: 0,
+            games_won: 0,
+        };
+
+        let _created: Option<db::UserRecord> = db
+            .create(&id.0)
+            .content(user_record)
+            .await
+            .map_err(|e| ServerFnError::new(e.to_string()))?;
+
+        debug!(
+            "AUTH : successfully created user inside db with id {:?}",
+            id
+        );
+        Ok(id)
+    }
 }

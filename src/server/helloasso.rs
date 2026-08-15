@@ -21,6 +21,20 @@ pub fn get() -> &'static HelloassoClient {
     })
 }
 
+#[derive(Deserialize)]
+struct TokenResponse {
+    access_token: String,
+    refresh_token: String,
+    expires_in: u64,
+}
+
+#[derive(Clone)]
+struct HelloassoTokens {
+    access_token: String,
+    refresh_token: String,
+    expires_at: Instant,
+}
+
 #[derive(Clone)]
 pub struct HelloassoClient {
     client: reqwest::Client,
@@ -196,16 +210,3 @@ impl HelloassoResponse {
     }
 }
 
-#[derive(Deserialize)]
-struct TokenResponse {
-    access_token: String,
-    refresh_token: String,
-    expires_in: u64,
-}
-
-#[derive(Clone)]
-struct HelloassoTokens {
-    access_token: String,
-    refresh_token: String,
-    expires_at: Instant,
-}

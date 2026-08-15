@@ -30,7 +30,7 @@ fn main() {
 
     dioxus::serve(|| async move {        
         let router = dioxus::server::router(client::route::app)
-            .layer(middleware::from_fn(auth::server_auth_guard))
+            .layer(middleware::from_fn(auth::middleware::server_auth_guard))
             .route("/", get(serve_landing));
         Ok(router)
     });

@@ -10,10 +10,17 @@ pub async fn login(email: String) -> Result<Result<(), String>, ServerFnError> {
 
     debug!("AUTH : user with email `{}` is trying to connect", email);
 
-    if let Some(user_id) = auth::has_account_or_create(&email).await? {
-        let token = auth::create_session_record(user_id).await?;
-        auth::create_cookie_in_response(token)?;
+    // 1. Search inside the DB for user with this email
+    if let Some(user_id) = auth::account::exists_or_create(&email).await? {
+        let token = auth::session::create(user_id).await?;
+        auth::cookie::create_in_response(token)?;
         Ok(Ok(()))
+    // 2. Search if they are registered in Helloasso
+    } else if let Some(user_id) = auth::account::try_create(&email).await? {
+        let token = auth::session::create(user_id).await?;
+        auth::cookie::create_in_response(token)?;
+        Ok(Ok(()))
+    // 3. They are not authenticated
     } else {
         Ok(Err("Email non enregistré chez HelloAsso.".to_string()))
     }
@@ -23,6 +30,6 @@ pub async fn login(email: String) -> Result<Result<(), String>, ServerFnError> {
 #[server]
 pub async fn logout() -> Result<(), ServerFnError> {
     use crate::server::auth;
-    auth::delete_session_record().await?;
-    auth::clear_cookie_from_response()
+    auth::session::delete().await?;
+    auth::cookie::clear_from_response()
 }
