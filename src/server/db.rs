@@ -7,7 +7,10 @@ use surrealdb::{
 };
 use tokio::sync::OnceCell;
 
-use crate::server::auth::UserId;
+use crate::{
+    api::db::{current_user::UserProfile, global::LeaderboardUserCard},
+    server::auth::UserId,
+};
 
 pub static DB: OnceCell<Surreal<Client>> = OnceCell::const_new();
 
@@ -37,6 +40,34 @@ pub async fn get() -> &'static Surreal<Client> {
         db.query("DEFINE TABLE IF NOT EXISTS users")
             .await
             .expect("Failed to create table \"users\"");
+        // TODO add indexes for sorting
+        db.query("DEFINE INDEX idx_users_leaderboard ON TABLE users FIELDS elo, games_played;")
+            .await
+            .expect("Failed to create leaderboard indexes");
+
+        // email validation and uniqueness
+        db.query(
+            "
+                DEFINE FIELD IF NOT EXISTS email ON TABLE users
+                    TYPE string
+                    VALUE string::trim($value)
+                    ASSERT string::is_email($value);
+                DEFINE INDEX IF NOT EXISTS idx_users_email_unique ON TABLE users FIELDS email UNIQUE;
+            ",
+        )
+        .await
+        .expect("Failed to create email constraints");
+
+        db.query(
+            "
+                DEFINE FIELD IF NOT EXISTS username ON TABLE user 
+                    TYPE string 
+                    VALUE string::trim($value) 
+                    ASSERT string::len($value) >= 3 AND string::len($value) <= 20;
+                DEFINE INDEX IF NOT EXISTS idx_users_username_unique ON TABLE user FIELDS username UNIQUE;
+            "
+        ).await.expect("Failed to create username constraints");
+
         db
     })
     .await
@@ -53,3 +84,25 @@ pub struct UserRecord {
     pub games_won: u64,
 }
 
+impl From<UserRecord> for UserProfile {
+    fn from(value: UserRecord) -> Self {
+        Self {
+            email: value.email,
+            username: value.username,
+            elo: value.elo,
+            games_played: value.games_played,
+            games_won: value.games_won,
+        }
+    }
+}
+
+impl From<UserRecord> for LeaderboardUserCard {
+    fn from(value: UserRecord) -> Self {
+        Self {
+            username: value.username,
+            elo: value.elo,
+            games_played: value.games_played,
+            games_won: value.games_won,
+        }
+    }
+}

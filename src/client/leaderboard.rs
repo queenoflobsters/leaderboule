@@ -1,13 +1,14 @@
-use dioxus::{prelude::*, CapturedError};
+use dioxus::prelude::*;
+use crate::api::db::global::{self, LeaderboardUserCard};
 
-use crate::api::{get_users_performances, UserPerformance};
 
 const LEADERBOARD_CSS: Asset = asset!("assets/leaderboard.css");
 const RELOAD_SVG: Asset = asset!("assets/reload.svg");
 
 #[component]
 pub fn Leaderboard() -> Element {
-    let user_perfs_hook = use_server_future(get_users_performances);
+    // Change page and page size
+    let user_perfs_hook = use_server_future(|| global::get_leaderboard_cards(0, 5));
     let mut reload_hook = user_perfs_hook.clone();
     rsx! {
         document::Stylesheet { href : LEADERBOARD_CSS }
@@ -36,7 +37,7 @@ pub fn Leaderboard() -> Element {
 
 #[component]
 fn PerfCardsManager(
-    user_perfs_hook: Result<Resource<Result<Vec<UserPerformance>, CapturedError>>, RenderError>,
+    user_perfs_hook: Result<Resource<Result<Vec<LeaderboardUserCard>, ServerFnError>>, RenderError>,
 ) -> Element {
     match user_perfs_hook?() {
         Some(Ok(user_perfs)) => rsx! {PerfCards { user_perfs }},
@@ -62,7 +63,7 @@ fn Banner(on_click: EventHandler<MouseEvent>) -> Element {
 }
 
 #[component]
-fn PerfCards(user_perfs: Vec<UserPerformance>) -> Element {
+fn PerfCards(user_perfs: Vec<LeaderboardUserCard>) -> Element {
     rsx! {
         for (i, user) in user_perfs.iter().enumerate() {
             {
@@ -77,7 +78,7 @@ fn PerfCards(user_perfs: Vec<UserPerformance>) -> Element {
                 rsx! {
                     div {
                         class: "card {podium_class}",
-                        div { class: "top-left", "{user.name}" }
+                        div { class: "top-left", "{user.username}" }
                         div { class: "top-right", "{user.elo}" }
                         div { class: "bottom-left",
                             "Total:"
