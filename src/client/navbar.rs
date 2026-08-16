@@ -45,12 +45,12 @@ pub fn Navbar() -> Element {
                         alt: "Menu",
                     }
                 }
-                div { class: "route-title", {current_route.as_str()} }
+                div { class: "current-route-title", {current_route.as_str()} }
             }
 
             // Sliding Sidebar
             nav { class: if is_open() { "sidebar open" } else { "sidebar" },
-                div { class: "routes-container classic-routes",
+                div { class: "routes-container normal-routes",
                     Link {
                         class: if is_open() { "route-entry open" } else { "route-entry" },
                         to: Route::Leaderboard {},

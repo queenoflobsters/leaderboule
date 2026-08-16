@@ -11,7 +11,7 @@ DEFINE FIELD IF NOT EXISTS email ON TABLE user
 DEFINE FIELD IF NOT EXISTS username ON TABLE user 
     TYPE string 
     VALUE string::trim($value) 
-    ASSERT string::len($value) >= 3 AND string::len($value) <= 20;
+    ASSERT string::len($value) >= 3 AND string::len($value) <= 50;
 
 -- Indexes for unique values and fast searching
 DEFINE INDEX IF NOT EXISTS idx_user_leaderboard ON TABLE user FIELDS elo, games_played;

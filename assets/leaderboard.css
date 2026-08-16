@@ -1,14 +1,37 @@
 .leaderboard-container {
-  display: flex;
-  flex-direction: column;
   width: fit-content;
   max-width: 100%;
   margin: 0 auto;
 }
 
 .banner {
-  /* display: grid; */
-  /* grid-template-columns: auto 1fr 1fr; */
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 0.75rem;
+  margin-bottom: 2.3rem;
+}
+
+.banner-icon {
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
+.search-input {
+  border: none;
+  outline: none;
+  box-shadow: none;
+  color: white;
+  background-color: #222;
+  border-radius: 0.3rem;
+}
+
+.sort-button {
+  display: flex;
+}
+
+.reload-button {
+  display: flex;
+  background-color: #840000;
 }
 
 .cards {
@@ -21,24 +44,21 @@
   position: relative;
   overflow: hidden;
   height: fit-content;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: 1fr auto;
   gap: 0.5rem;
   padding: 1rem 1rem 1rem calc(1rem + 0.4rem);
   margin: 1.4rem auto;
   background-color: #1c1c1c;
-  color: #bbb;
+  color: #ddd;
   font-variant-numeric: tabular-nums;
   border-radius: 0.3rem;
 }
 
 
-.reload-button {
-  /* grid-column: 3; */
-  display: flex; /* I have no idea why that works */
-  background-color: #840000;
-}
 
-.first, .second, .third {
+.first,
+.second,
+.third {
   border: 0.05rem gray solid;
 }
 
@@ -53,55 +73,63 @@
   width: 0.3rem;
 }
 
-.first {
-border-color: goldenrod;
-}
-.second {
-border-color: lightgray;
-}
-.third {
-border-color: #5e2906;
-}
-.first::before {
-  background-color: goldenrod;
-}
-.second::before {
-  background-color: lightgray;
-}
-.third::before {
-  background-color: #5e2906;
-}
+.first { border-color: goldenrod; }
+.second { border-color: lightgray; }
+.third { border-color: #5e2906; }
+.first::before { background-color: goldenrod; }
+.second::before { background-color: lightgray; }
+.third::before { background-color: #5e2906; }
 
-.top-left {
+.player-username {
   grid-column: 1;
   font-size: 1.3rem;
   text-align: left;
 }
 
-.top-right {
+.player-elo {
   font-size: 1.3rem;
   font-weight: bold;
   grid-column: 2;
   text-align: right;
   color: #0ecc08;
-  text-shadow: 0 0 0.5em color-mix(in srgb, currentColor 50%, transparent);
+  text-shadow: 0 0 0.5em color-mix(in srgb, currentColor 70%, transparent);
 }
 
-.bottom-left {
-  grid-column: 1;
-  text-align: left;
-}
-
-.bottom-right {
-  grid-column: 2;
-  text-align: right;
-  text-shadow: 0 0 0.5em color-mix(in srgb, currentColor 50%, transparent);
-  color: #fc5356;
-}
-
-.card-digits {
+.player-stats {
+  display: inline-flex;
+  gap: 0.5rem;
+  font-size: 1.1rem;
   font-weight: bold;
+}
+
+.stat-container {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.stat-icon {
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
+.games-won {
   color: goldenrod;
-  text-shadow: 0 0 0.5em color-mix(in srgb, currentColor 50%, transparent);
-  margin: 0.3rem;
+  filter: drop-shadow(0 0 0.35rem color-mix(in srgb, currentColor 75%, transparent));
+}
+
+
+.games-lost {
+  color: #fc5356;
+  filter: drop-shadow(0 0 0.35rem color-mix(in srgb, currentColor 75%, transparent));
+}
+
+.games-played {
+  color: rgb(58, 118, 245);
+  filter: drop-shadow(0 0 0.35rem color-mix(in srgb, currentColor 75%, transparent));
+}
+
+.ratio {
+  color: #bbb;
+  filter: drop-shadow(0 0 0.5em color-mix(in srgb, currentColor 50%, transparent));
 }

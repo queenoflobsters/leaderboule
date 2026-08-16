@@ -1,8 +1,13 @@
-use dioxus::prelude::*;
 use crate::api::db::global::{self, LeaderboardUserCard};
+use dioxus::prelude::*;
 
 const LEADERBOARD_CSS: Asset = asset!("assets/leaderboard.css");
 const RELOAD_SVG: Asset = asset!("assets/reload.svg");
+const SORT_SVG: Asset = asset!("assets/sort.svg");
+const TROPHY_SVG: Asset = asset!("assets/trophy.svg");
+const BROKEN_HEART_SVG: Asset = asset!("assets/broken-heart.svg");
+const TOTAL_SVG: Asset = asset!("assets/total.svg");
+const PERCENT_SVG: Asset = asset!("assets/percent.svg");
 
 #[component]
 pub fn Leaderboard() -> Element {
@@ -14,9 +19,9 @@ pub fn Leaderboard() -> Element {
         document::Stylesheet { href: LEADERBOARD_CSS }
 
         div { class: "leaderboard-container",
-            div { class: "banner",
-                Banner { on_reload: move |_| refresh_count += 1 }
-            }
+
+            Banner { on_reload: move |_| refresh_count += 1 }
+
             div { class: "cards",
                 SuspenseBoundary {
                     fallback: |_| rsx! { p { class: "abnormal-state-message", "Patience..." } },
@@ -52,22 +57,37 @@ fn PerfCardsList(
         },
         None => rsx! {
             p { class: "pending-messages", "Patience..." }
-        }
+        },
     }
 }
 
 #[component]
 fn Banner(on_reload: EventHandler<MouseEvent>) -> Element {
     rsx! {
-        button {
-            class: "reload-button",
-            onclick: move |evt| on_reload.call(evt),
-            img {
-                class: "reload-icon",
-                src: RELOAD_SVG,
-                width: 24,
-                height: 24,
-                alt: "Recharger",
+        div { class: "banner",
+            input {
+                class: "search-input",
+                r#type: "search",
+                placeholder: "Search players...",
+                // value: "{search_query}",
+                // oninput: move |evt| {
+                //     let value = evt.value();
+                //     search_query.set(value.clone());
+                //     if let Some(handler) = on_search {
+                //         handler.call(value);
+                //     }
+                // },
+            }
+
+            button {
+                class: "sort-button",
+                onclick: move |evt| on_reload.call(evt),
+                img { class: "banner-icon", src: SORT_SVG, alt: "Recharger", }
+            }
+            button {
+                class: "reload-button",
+                onclick: move |evt| on_reload.call(evt),
+                img { class: "banner-icon", src: RELOAD_SVG, alt: "Recharger", }
             }
         }
     }
@@ -76,7 +96,9 @@ fn Banner(on_reload: EventHandler<MouseEvent>) -> Element {
 #[component]
 fn CardItem(index: usize, user: LeaderboardUserCard) -> Element {
     let games_lost = user.games_played.saturating_sub(user.games_won);
-    let ratio = (100 * user.games_won).checked_div(user.games_played).unwrap_or(0);
+    let ratio = (100 * user.games_won)
+        .checked_div(user.games_played)
+        .unwrap_or(0);
     let podium_class = match index {
         0 => "first",
         1 => "second",
@@ -86,17 +108,26 @@ fn CardItem(index: usize, user: LeaderboardUserCard) -> Element {
 
     rsx! {
         div { class: "card {podium_class}",
-            div { class: "top-left", "{user.username}" }
-            div { class: "top-right", "{user.elo}" }
-            div { class: "bottom-left",
-                "Total:"
-                span { class: "card-digits", "{user.games_played}" }
-                "Gagnées:"
-                span { class: "card-digits", "{user.games_won}" }
-                "Perdues:"
-                span { class: "card-digits", "{games_lost}" }
+            div { class: "player-username", "{user.username}" }
+            div { class: "player-elo", "{user.elo}" }
+            div { class: "player-stats",
+                span { class: "stat-container games-won",
+                    img { class: "stat-icon", src: TROPHY_SVG}
+                    "{user.games_won}"
+                }
+                span { class: "stat-container games-lost",
+                    img { class: "stat-icon", src: BROKEN_HEART_SVG}
+                    "{games_lost}"
+                }
+                span { class: "stat-container games-played",
+                    img { class: "stat-icon", src: TOTAL_SVG}
+                    "{user.games_played}"
+                }
+                span { class: "stat-container ratio",
+                    img { class: "stat-icon", src: PERCENT_SVG}
+                    "{ratio}"
+                }
             }
-            div { class: "bottom-right", "{ratio}%" }
         }
     }
 }
