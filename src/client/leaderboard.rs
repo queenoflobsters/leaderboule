@@ -1,5 +1,5 @@
-use crate::api::db::global::{self, LeaderboardUserCard};
-use dioxus::prelude::*;
+use crate::api::db::global::{self, LeaderboardSortMethod, LeaderboardUserCard};
+use dioxus::{core::Task, prelude::*};
 
 const LEADERBOARD_CSS: Asset = asset!("assets/leaderboard.css");
 const RELOAD_SVG: Asset = asset!("assets/reload.svg");
@@ -9,10 +9,21 @@ const BROKEN_HEART_SVG: Asset = asset!("assets/broken-heart.svg");
 const TOTAL_SVG: Asset = asset!("assets/total.svg");
 const PERCENT_SVG: Asset = asset!("assets/percent.svg");
 
+async fn sleep_ms(millis: u32) {
+    // HORRENDOUS call to JS for wait helper
+    // TODO fix later
+    let _ = document::eval(&format!(
+        "await new Promise(resolve => setTimeout(resolve, {millis}));"
+    ))
+    .await;
+}
+
 #[component]
 pub fn Leaderboard() -> Element {
-    let mut refresh_count = use_signal(|| 0);
-    let page = use_signal(|| 0);
+    let refresh_count = use_signal(|| 0);
+    let search_query = use_signal(String::new);
+    let sort_method = use_signal(|| LeaderboardSortMethod::Elo);
+    let current_page = use_signal(|| 0);
     let page_size = use_signal(|| 5);
 
     rsx! {
@@ -20,13 +31,13 @@ pub fn Leaderboard() -> Element {
 
         div { class: "leaderboard-container",
 
-            Banner { on_reload: move |_| refresh_count += 1 }
+            Banner { search_query, current_page, refresh_count }
 
             div { class: "cards",
                 SuspenseBoundary {
                     fallback: |_| rsx! { p { class: "abnormal-state-message", "Patience..." } },
                     // 2. The suspended component receives clean signals
-                    PerfCardsList { refresh_count, page, page_size }
+                    CardsList { search_query, sort_method, current_page, page_size, refresh_count,  }
                 }
             }
         }
@@ -34,59 +45,40 @@ pub fn Leaderboard() -> Element {
 }
 
 #[component]
-fn PerfCardsList(
-    refresh_count: Signal<usize>,
-    page: Signal<u64>,
-    page_size: Signal<u64>,
+fn Banner(
+    search_query: Signal<String>,
+    current_page: Signal<u64>,
+    refresh_count: Signal<u64>,
 ) -> Element {
-    let cards_resource = use_server_future(move || {
-        let _ = refresh_count(); // Triggered on reload button click
-        let p = page();
-        let size = page_size();
-        async move { global::get_leaderboard_cards(p, size).await }
-    })?;
-
-    match cards_resource() {
-        Some(Ok(user_perfs)) => rsx! {
-            for (i, user) in user_perfs.iter().enumerate() {
-                CardItem { index: i, user: user.clone() }
-            }
-        },
-        Some(Err(err)) => rsx! {
-            p { class: "pending-messages", "Oulah... Erreur\n{err}" }
-        },
-        None => rsx! {
-            p { class: "pending-messages", "Patience..." }
-        },
-    }
-}
-
-#[component]
-fn Banner(on_reload: EventHandler<MouseEvent>) -> Element {
+    let mut debounce_task = use_signal(|| None::<Task>);
     rsx! {
         div { class: "banner",
             input {
                 class: "search-input",
                 r#type: "search",
-                placeholder: "Search players...",
-                // value: "{search_query}",
-                // oninput: move |evt| {
-                //     let value = evt.value();
-                //     search_query.set(value.clone());
-                //     if let Some(handler) = on_search {
-                //         handler.call(value);
-                //     }
-                // },
+                placeholder: "Rechercher...",
+                oninput: move |form_data| {
+                    let new_val = form_data.value();
+                    if let Some(task) = debounce_task.take() {
+                        task.cancel();
+                    }
+                    let task = spawn(async move {
+                        sleep_ms(300).await;
+                        current_page.set(0);
+                        search_query.set(new_val);
+                    });
+                    debounce_task.set(Some(task));
+                },
             }
 
             button {
                 class: "sort-button",
-                onclick: move |evt| on_reload.call(evt),
+                onclick: move |_| (),
                 img { class: "banner-icon", src: SORT_SVG, alt: "Recharger", }
             }
             button {
                 class: "reload-button",
-                onclick: move |evt| on_reload.call(evt),
+                onclick: move |_| refresh_count += 1,
                 img { class: "banner-icon", src: RELOAD_SVG, alt: "Recharger", }
             }
         }
@@ -94,15 +86,53 @@ fn Banner(on_reload: EventHandler<MouseEvent>) -> Element {
 }
 
 #[component]
-fn CardItem(index: usize, user: LeaderboardUserCard) -> Element {
+fn CardsList(
+    search_query: Signal<String>,
+    current_page: Signal<u64>,
+    sort_method: Signal<LeaderboardSortMethod>,
+    page_size: Signal<u64>,
+    refresh_count: Signal<u64>,
+) -> Element {
+    let cards_resource = use_server_future(move || {
+        let _ = refresh_count();
+        let q = search_query();
+        let s = sort_method();
+        let p = current_page();
+        let size = page_size();
+        async move { global::get_leaderboard_cards(q, s, p, size).await }
+    })?;
+    let do_podium = search_query().is_empty() && current_page() == 0;
+    match cards_resource() {
+        Some(Ok(user_card)) if user_card.is_empty() => rsx! {
+            p { class: "abnormal-state-message", "Aucun joueur trouvé"}
+        },
+        Some(Ok(user_perfs)) => rsx! {
+            for (i, user) in user_perfs.iter().enumerate() {
+                {
+                    let use_index = if do_podium { Some(i) } else { None };
+                    rsx! {CardItem { key: "{user.username}", use_index, user: user.clone() }}
+                }
+            }
+        },
+        Some(Err(err)) => rsx! {
+            p { class: "abnormal-state-message", "Oulah... Erreur :\n{err}" }
+        },
+        None => rsx! {
+            p { class: "abnormal-state-message", "Patience..." }
+        },
+    }
+}
+
+#[component]
+fn CardItem(use_index: Option<usize>, user: LeaderboardUserCard) -> Element {
     let games_lost = user.games_played.saturating_sub(user.games_won);
     let ratio = (100 * user.games_won)
         .checked_div(user.games_played)
         .unwrap_or(0);
-    let podium_class = match index {
-        0 => "first",
-        1 => "second",
-        2 => "third",
+    let podium_class = match use_index {
+        Some(0) => "first",
+        Some(1) => "second",
+        Some(2) => "third",
         _ => "",
     };
 

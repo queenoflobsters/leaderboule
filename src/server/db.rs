@@ -8,8 +8,11 @@ use surrealdb::{
 use tokio::sync::OnceCell;
 
 use crate::{
-    api::db::{current_user::UserProfile, global::LeaderboardUserCard},
-    server::auth::{UserId},
+    api::db::{
+        current_user::UserProfile,
+        global::{LeaderboardSortMethod, LeaderboardUserCard},
+    },
+    server::auth::UserId,
 };
 
 pub static DB: OnceCell<Surreal<Client>> = OnceCell::const_new();
@@ -45,6 +48,36 @@ pub async fn get() -> &'static Surreal<Client> {
         db
     })
     .await
+}
+
+/// Here are the SQL variables needed to be defined to use this :
+/// $search -> the search query
+/// $limit -> the maximum amount of records returned
+/// $start -> the start of the search
+pub fn construct_leaderboard_query(
+    do_query: bool,
+    sort_method: LeaderboardSortMethod,
+) -> String {
+    let base_select = match sort_method {
+        LeaderboardSortMethod::WinRatio => "SELECT *, (IF games_played > 0 THEN games_won / games_played ELSE 0.0 END) AS win_ratio FROM user",
+        _ => "SELECT * FROM user",
+    };
+
+    let query_clause = if do_query {
+        "WHERE username @1@ $search"
+    } else {
+        ""
+    };
+
+    let sort_clause = match sort_method {
+        LeaderboardSortMethod::Elo => "ORDER BY elo DESC, games_played DESC",
+        LeaderboardSortMethod::GamesPlayed => "ORDER BY games_played DESC, elo DESC",
+        LeaderboardSortMethod::GamesWon => "ORDER BY games_won DESC, elo DESC",
+        LeaderboardSortMethod::WinRatio => "ORDER BY win_ratio DESC, elo DESC",
+    };
+
+    let limit_clause = "LIMIT $limit START $start";
+    format!("{base_select} {query_clause} {sort_clause} {limit_clause}")
 }
 
 /// User database model

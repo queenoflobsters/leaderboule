@@ -13,10 +13,16 @@ DEFINE FIELD IF NOT EXISTS username ON TABLE user
     VALUE string::trim($value) 
     ASSERT string::len($value) >= 3 AND string::len($value) <= 50;
 
+-- define username analyzer for searching
+DEFINE ANALYZER IF NOT EXISTS user_search_analyzer
+    TOKENIZERS class
+    FILTERS lowercase, ascii, edgengram(1, 20);
+
 -- Indexes for unique values and fast searching
-DEFINE INDEX IF NOT EXISTS idx_user_leaderboard ON TABLE user FIELDS elo, games_played;
+DEFINE INDEX IF NOT EXISTS idx_user_leaderboard ON TABLE user FIELDS elo, games_played, games_lost;
 DEFINE INDEX IF NOT EXISTS idx_user_username_unique ON TABLE user FIELDS username UNIQUE;
 DEFINE INDEX IF NOT EXISTS idx_user_email_unique ON TABLE user FIELDS email UNIQUE;
+DEFINE INDEX IF NOT EXISTS idx_user_search ON TABLE user FIELDS username FULLTEXT ANALYZER user_search_analyzer;
 
 -- II. define the session table
 DEFINE TABLE IF NOT EXISTS session SCHEMALESS;
