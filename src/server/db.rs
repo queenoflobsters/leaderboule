@@ -1,3 +1,4 @@
+use dioxus::server::ServerFnError;
 use serde::{Deserialize, Serialize};
 use surrealdb::{
     engine::remote::ws::{Client, Ws},
@@ -50,20 +51,20 @@ pub async fn get() -> &'static Surreal<Client> {
     .await
 }
 
-/// Here are the SQL variables needed to be defined to use this :
-/// $search -> the search query
-/// $limit -> the maximum amount of records returned
-/// $start -> the start of the search
-pub fn construct_leaderboard_query(
-    do_query: bool,
+pub async fn get_leaderboard_cards(
+    search_query: String,
     sort_method: LeaderboardSortMethod,
-) -> String {
-    let base_select = match sort_method {
-        LeaderboardSortMethod::WinRatio => "SELECT *, (IF games_played > 0 THEN games_won / games_played ELSE 0.0 END) AS win_ratio FROM user",
-        _ => "SELECT * FROM user",
-    };
+    page: u64,
+    page_size: u64,
+) -> Result<Vec<LeaderboardUserCard>, ServerFnError> {
+    let db = get().await;
 
-    let query_clause = if do_query {
+    let base_select = match sort_method {
+            LeaderboardSortMethod::WinRatio => "SELECT *, (IF games_played > 0 THEN games_won / games_played ELSE 0.0 END) AS win_ratio FROM user",
+            _ => "SELECT * FROM user",
+        };
+
+    let query_clause = if !search_query.is_empty() {
         "WHERE username @1@ $search"
     } else {
         ""
@@ -77,7 +78,21 @@ pub fn construct_leaderboard_query(
     };
 
     let limit_clause = "LIMIT $limit START $start";
-    format!("{base_select} {query_clause} {sort_clause} {limit_clause}")
+
+    let query = format!("{base_select} {query_clause} {sort_clause} {limit_clause}");
+
+    let records: Vec<UserRecord> = db
+        .query(query)
+        .bind(("limit", page_size))
+        .bind(("start", page * page_size))
+        .bind(("search", search_query))
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))?
+        .take(0)
+        .map_err(|e| ServerFnError::new(e.to_string()))?;
+    let cards = records.into_iter().map(LeaderboardUserCard::from).collect();
+
+    Ok(cards)
 }
 
 /// User database model

@@ -50,6 +50,7 @@ pub mod current_user {
 }
 
 pub mod global {
+
     use super::*;
 
     #[derive(Serialize, Deserialize, PartialEq, Clone)]
@@ -76,21 +77,9 @@ pub mod global {
         page_size: u64,
     ) -> Result<Vec<LeaderboardUserCard>, ServerFnError> {
         use crate::server::{auth, db};
-        let db = db::get().await;
         if auth::session::get_from_extension().is_none() {
             return Ok(vec![]);
         }
-        let query = db::construct_leaderboard_query(!search_query.is_empty(), sort_method);
-        let records: Vec<db::UserRecord> = db
-            .query(query)
-            .bind(("limit", page_size))
-            .bind(("start", page * page_size))
-            .bind(("search", search_query))
-            .await
-            .map_err(|e| ServerFnError::new(e.to_string()))?
-            .take(0)
-            .map_err(|e| ServerFnError::new(e.to_string()))?;
-        let cards = records.into_iter().map(LeaderboardUserCard::from).collect();
-        Ok(cards)
+        db::get_leaderboard_cards(search_query, sort_method, page, page_size).await
     }
 }
