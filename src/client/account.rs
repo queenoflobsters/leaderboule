@@ -30,7 +30,6 @@ pub fn Account() -> Element {
     };
     let logout_button_message = use_signal(|| "Déconnexion");
     let logout_button_loading = use_signal(|| false);
-    let games_lost = profile.games_played - profile.games_won;
 
     rsx! {
         document::Stylesheet { href: ACCOUNT_CSS }
@@ -69,7 +68,10 @@ pub fn Account() -> Element {
             }
 
             p {
-                "Parties perdues : {games_lost}"
+                "Parties perdues : {profile.games_lost}"
+            }
+            p {
+                "Ratio de victoire : {profile.win_ratio}"
             }
             p {
                 "E-Mail : {profile.email}"

@@ -161,10 +161,6 @@ fn CardsList(
 
 #[component]
 fn CardItem(use_index: Option<usize>, user: LeaderboardUserCard) -> Element {
-    let games_lost = user.games_played.saturating_sub(user.games_won);
-    let ratio = (100 * user.games_won)
-        .checked_div(user.games_played)
-        .unwrap_or(0);
     let podium_class = match use_index {
         Some(0) => "first",
         Some(1) => "second",
@@ -183,7 +179,7 @@ fn CardItem(use_index: Option<usize>, user: LeaderboardUserCard) -> Element {
                 }
                 span { class: "stat-container games-lost",
                     img { class: "stat-icon", src: BROKEN_HEART_SVG}
-                    "{games_lost}"
+                    "{user.games_lost}"
                 }
                 span { class: "stat-container games-played",
                     img { class: "stat-icon", src: TOTAL_SVG}
@@ -191,7 +187,7 @@ fn CardItem(use_index: Option<usize>, user: LeaderboardUserCard) -> Element {
                 }
                 span { class: "stat-container ratio",
                     img { class: "stat-icon", src: PERCENT_SVG}
-                    "{ratio}"
+                    "{user.win_ratio}"
                 }
             }
         }
