@@ -24,14 +24,14 @@ pub fn Leaderboard() -> Element {
     let search_query = use_signal(String::new);
     let sort_method = use_signal(|| LeaderboardSortMethod::Elo);
     let current_page = use_signal(|| 0);
-    let page_size = use_signal(|| 5);
+    let page_size = use_signal(|| 10);
 
     rsx! {
         document::Stylesheet { href: LEADERBOARD_CSS }
 
         div { class: "leaderboard-container",
 
-            Banner { search_query, current_page, refresh_count }
+            Banner { search_query, sort_method, current_page, refresh_count }
 
             div { class: "cards",
                 SuspenseBoundary {
@@ -47,10 +47,13 @@ pub fn Leaderboard() -> Element {
 #[component]
 fn Banner(
     search_query: Signal<String>,
+    sort_method: Signal<LeaderboardSortMethod>,
     current_page: Signal<u64>,
     refresh_count: Signal<u64>,
 ) -> Element {
+    let mut show_sort_menu = use_signal(|| false);
     let mut debounce_task = use_signal(|| None::<Task>);
+    let sort_active = sort_method() != LeaderboardSortMethod::Elo;
     rsx! {
         div { class: "banner",
             input {
@@ -72,8 +75,8 @@ fn Banner(
             }
 
             button {
-                class: "sort-button",
-                onclick: move |_| (),
+                class: if sort_active { "sort-button active" } else { "sort-button" },
+                onclick: move |_| show_sort_menu.toggle(),
                 img { class: "banner-icon", src: SORT_SVG, alt: "Recharger", }
             }
             button {
@@ -82,6 +85,39 @@ fn Banner(
                 img { class: "banner-icon", src: RELOAD_SVG, alt: "Recharger", }
             }
         }
+
+        { if show_sort_menu() { rsx ! {
+            div { class: "sort-menu",
+                div { class: "sort-menu-item",
+                    onclick: move |_| {
+                        sort_method.set(LeaderboardSortMethod::Elo);
+                        show_sort_menu.set(false);
+                    },
+                    "Elo"
+                }
+                div { class: "sort-menu-item",
+                    onclick: move |_| {
+                        sort_method.set(LeaderboardSortMethod::GamesPlayed);
+                        show_sort_menu.set(false);
+                    },
+                    "Parties jouées"
+                }
+                div { class: "sort-menu-item",
+                    onclick: move |_| {
+                        sort_method.set(LeaderboardSortMethod::GamesWon);
+                        show_sort_menu.set(false);
+                    },
+                    "Parties gagnées"
+                }
+                div { class: "sort-menu-item",
+                    onclick: move |_| {
+                        sort_method.set(LeaderboardSortMethod::WinRatio);
+                        show_sort_menu.set(false);
+                    },
+                    "Ratio de victoires"
+                }
+            }
+        }} else { rsx! {} }}
     }
 }
 

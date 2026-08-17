@@ -59,11 +59,6 @@ pub async fn get_leaderboard_cards(
 ) -> Result<Vec<LeaderboardUserCard>, ServerFnError> {
     let db = get().await;
 
-    let base_select = match sort_method {
-            LeaderboardSortMethod::WinRatio => "SELECT *, (IF games_played > 0 THEN games_won / games_played ELSE 0.0 END) AS win_ratio FROM user",
-            _ => "SELECT * FROM user",
-        };
-
     let query_clause = if !search_query.is_empty() {
         "WHERE username @1@ $search"
     } else {
@@ -77,11 +72,10 @@ pub async fn get_leaderboard_cards(
         LeaderboardSortMethod::WinRatio => "ORDER BY win_ratio DESC, elo DESC",
     };
 
-    let limit_clause = "LIMIT $limit START $start";
+    let query =
+        format!("SELECT * FROM user {query_clause} {sort_clause} LIMIT $limit START $start");
 
-    let query = format!("{base_select} {query_clause} {sort_clause} {limit_clause}");
-
-    let records: Vec<UserRecord> = db
+    let cards: Vec<LeaderboardUserCard> = db
         .query(query)
         .bind(("limit", page_size))
         .bind(("start", page * page_size))
@@ -90,7 +84,6 @@ pub async fn get_leaderboard_cards(
         .map_err(|e| ServerFnError::new(e.to_string()))?
         .take(0)
         .map_err(|e| ServerFnError::new(e.to_string()))?;
-    let cards = records.into_iter().map(LeaderboardUserCard::from).collect();
 
     Ok(cards)
 }
@@ -106,25 +99,91 @@ pub struct UserRecord {
     pub games_won: u64,
 }
 
-impl From<UserRecord> for UserProfile {
-    fn from(value: UserRecord) -> Self {
-        Self {
-            email: value.email,
-            username: value.username,
-            elo: value.elo,
-            games_played: value.games_played,
-            games_won: value.games_won,
+
+impl SurrealValue for LeaderboardUserCard {
+    fn kind_of() -> surrealdb::types::Kind {
+        surrealdb::types::Kind::Any
+    }
+
+    fn into_value(self) -> surrealdb::types::Value {
+        panic!("You should never write a LeaderboardUserCard into something");
+    }
+
+    fn from_value(value: surrealdb::types::Value) -> Result<Self, surrealdb::Error>
+    where
+        Self: Sized,
+    {
+        use surrealdb::types::{Number, SurrealValue, Value};
+
+        match value {
+            Value::Object(mut obj) => {
+                Ok(Self {
+                    username: SurrealValue::from_value(
+                        obj.remove("username").unwrap_or(Value::None),
+                    )?,
+                    elo: SurrealValue::from_value(obj.remove("elo").unwrap_or(Value::None))?,
+                    games_played: SurrealValue::from_value(
+                        obj.remove("games_played").unwrap_or(Value::None),
+                    )?,
+                    games_won: SurrealValue::from_value(
+                        obj.remove("games_won").unwrap_or(Value::None),
+                    )?,
+                    games_lost: SurrealValue::from_value(
+                        obj.remove("games_lost").unwrap_or(Value::None),
+                    )?,
+                    win_ratio: match obj.remove("win_ratio").unwrap_or(Value::None) {
+                        Value::Number(Number::Float(f)) => f.round() as u64,
+                        Value::Number(Number::Int(i)) => i.max(0) as u64,
+                        v => SurrealValue::from_value(v)?,
+                    },
+                })
+            }
+            other => <()>::from_value(other).map(|_| unreachable!()),
         }
     }
 }
+impl SurrealValue for UserProfile {
+    fn kind_of() -> surrealdb::types::Kind {
+        surrealdb::types::Kind::Any
+    }
 
-impl From<UserRecord> for LeaderboardUserCard {
-    fn from(value: UserRecord) -> Self {
-        Self {
-            username: value.username,
-            elo: value.elo,
-            games_played: value.games_played,
-            games_won: value.games_won,
+    fn into_value(self) -> surrealdb::types::Value {
+        panic!("You should never write a LeaderboardUserCard into something");
+    }
+
+    fn from_value(value: surrealdb::types::Value) -> Result<Self, surrealdb::Error>
+    where
+        Self: Sized,
+    {
+        use surrealdb::types::{Number, SurrealValue, Value};
+
+        match value {
+            Value::Object(mut obj) => {
+                Ok(Self {
+                    email: SurrealValue::from_value(
+                        obj.remove("email").unwrap_or(Value::None),
+                    )?,
+                    username: SurrealValue::from_value(
+                        obj.remove("username").unwrap_or(Value::None),
+                    )?,
+                    elo: SurrealValue::from_value(obj.remove("elo").unwrap_or(Value::None))?,
+                    games_played: SurrealValue::from_value(
+                        obj.remove("games_played").unwrap_or(Value::None),
+                    )?,
+                    games_won: SurrealValue::from_value(
+                        obj.remove("games_won").unwrap_or(Value::None),
+                    )?,
+                    games_lost: SurrealValue::from_value(
+                        obj.remove("games_lost").unwrap_or(Value::None),
+                    )?,
+                    win_ratio: match obj.remove("win_ratio").unwrap_or(Value::None) {
+                        Value::Number(Number::Float(f)) => f.round() as u64,
+                        Value::Number(Number::Int(i)) => i.max(0) as u64,
+                        v => SurrealValue::from_value(v)?,
+                    },
+                })
+            }
+            other => <()>::from_value(other).map(|_| unreachable!()),
         }
     }
 }

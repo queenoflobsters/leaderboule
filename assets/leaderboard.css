@@ -1,14 +1,16 @@
+/* GLOBAL CONTAINER */
 .leaderboard-container {
   width: fit-content;
   max-width: 100%;
   margin: 0 auto;
 }
 
+/* BANNER */
 .banner {
   display: grid;
   grid-template-columns: 1fr auto auto;
   gap: 0.75rem;
-  margin-bottom: 2.3rem;
+  margin-bottom: 1rem;
 }
 
 .banner-icon {
@@ -30,14 +32,45 @@
   display: flex;
 }
 
+.sort-button.active {
+  background-color: rgb(58, 118, 245);
+}
+
+.sort-menu {
+  width: fit-content;
+  margin-left: auto;
+  border: 0.15rem solid #555;
+  border-radius: 0.4rem;
+  overflow: hidden;
+}
+
+.sort-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  color: white;
+  text-decoration: none;
+  font-size: 1.1rem;
+  padding: 0.4rem 1.5rem;
+  text-align: right;
+}
+
+.sort-menu-item:hover {
+  background-color: #333;
+}
+
+
+
 .reload-button {
   display: flex;
   background-color: #840000;
 }
 
+/* USER CARDS */
 .cards {
   width: 30rem;
   max-width: 100%;
+  margin-top: 2.3rem;
 }
 
 .card {
@@ -55,31 +88,6 @@
   border-radius: 0.3rem;
 }
 
-
-
-.first,
-.second,
-.third {
-  border: 0.05rem gray solid;
-}
-
-.first::before,
-.second::before,
-.third::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  width: 0.3rem;
-}
-
-.first { border-color: goldenrod; }
-.second { border-color: lightgray; }
-.third { border-color: #5e2906; }
-.first::before { background-color: goldenrod; }
-.second::before { background-color: lightgray; }
-.third::before { background-color: #5e2906; }
 
 .player-username {
   grid-column: 1;
@@ -133,4 +141,46 @@
 .ratio {
   color: #bbb;
   filter: drop-shadow(0 0 0.5em color-mix(in srgb, currentColor 50%, transparent));
+}
+
+/* PODIUM */
+.first,
+.second,
+.third {
+  border: 0.05rem gray solid;
+}
+
+.first::before,
+.second::before,
+.third::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 0.3rem;
+}
+
+.first {
+  border-color: goldenrod;
+}
+
+.second {
+  border-color: lightgray;
+}
+
+.third {
+  border-color: #5e2906;
+}
+
+.first::before {
+  background-color: goldenrod;
+}
+
+.second::before {
+  background-color: lightgray;
+}
+
+.third::before {
+  background-color: #5e2906;
 }

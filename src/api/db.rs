@@ -13,6 +13,8 @@ pub mod current_user {
         pub elo: u64,
         pub games_played: u64,
         pub games_won: u64,
+        pub games_lost: u64,
+        pub win_ratio: u64,
     }
 
     #[server]
@@ -38,11 +40,11 @@ pub mod current_user {
         use crate::server::{auth, db};
         if let Some(session_record) = auth::session::get_from_extension() {
             let db = db::get().await;
-            let record: Option<db::UserRecord> = db
+            let user_profile: Option<UserProfile> = db
                 .select(&session_record.user_id.0)
                 .await
                 .map_err(|e| ServerFnError::new(e.to_string()))?;
-            Ok(record.map(UserProfile::from))
+            Ok(user_profile)
         } else {
             Ok(None)
         }
@@ -51,7 +53,8 @@ pub mod current_user {
 
 pub mod global {
 
-    use super::*;
+
+use super::*;
 
     #[derive(Serialize, Deserialize, PartialEq, Clone)]
     pub struct LeaderboardUserCard {
@@ -59,7 +62,10 @@ pub mod global {
         pub elo: u64,
         pub games_played: u64,
         pub games_won: u64,
+        pub games_lost: u64,
+        pub win_ratio: u64,
     }
+
 
     #[derive(Serialize, Deserialize, PartialEq, Clone)]
     pub enum LeaderboardSortMethod {

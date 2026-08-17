@@ -13,10 +13,36 @@ DEFINE FIELD IF NOT EXISTS username ON TABLE user
     VALUE string::trim($value) 
     ASSERT string::len($value) >= 3 AND string::len($value) <= 50;
 
+-- elo constraint (must be >= 0)
+DEFINE FIELD IF NOT EXISTS elo ON TABLE user
+    TYPE int
+    DEFAULT 400
+    ASSERT $value >= 0;
+
+-- games played constraint (>= 0 and >= games won)
+DEFINE FIELD IF NOT EXISTS games_played ON TABLE user
+    TYPE int
+    DEFAULT 0
+    ASSERT $value >= 0 AND $value >= $this.games_won;
+
+-- games won constraints (>= 0 and <= games played)
+DEFINE FIELD IF NOT EXISTS games_won ON TABLE user
+    TYPE int
+    DEFAULT 0
+    ASSERT $value >= 0 AND $value <= $this.games_played;
+
 -- define username analyzer for searching
 DEFINE ANALYZER IF NOT EXISTS user_search_analyzer
     TOKENIZERS class
     FILTERS lowercase, ascii, edgengram(1, 20);
+
+-- AUTO-COMPUTED: games_lost 
+DEFINE FIELD IF NOT EXISTS games_lost ON TABLE user
+    COMPUTED games_played - games_won;
+
+-- AUTO-COMPUTED: win_ratio 
+DEFINE FIELD IF NOT EXISTS win_ratio ON TABLE user
+    COMPUTED IF games_played > 0 THEN (games_won * 100.0) / games_played ELSE 0.0 END;
 
 -- Indexes for unique values and fast searching
 DEFINE INDEX IF NOT EXISTS idx_user_leaderboard ON TABLE user FIELDS elo, games_played, games_lost;
@@ -58,6 +84,7 @@ DEFINE INDEX IF NOT EXISTS idx_user_cred_user_id_unique ON TABLE user_cred
 DEFINE FIELD IF NOT EXISTS password_hash ON TABLE user_cred
     TYPE string
     ASSERT string::starts_with($value, '$argon2');
+
 -- 4. Audit timestamps
 -- DEFINE FIELD IF NOT EXISTS created_at ON TABLE user_auth 
 --     TYPE datetime 
