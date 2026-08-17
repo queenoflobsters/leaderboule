@@ -49,38 +49,42 @@ pub fn Navbar() -> Element {
             }
 
             // Sliding Sidebar
-            nav { class: if is_open() { "sidebar open" } else { "sidebar" },
-                div { class: "routes-container normal-routes",
-                    Link {
-                        class: if is_open() { "route-entry open" } else { "route-entry" },
-                        to: Route::Leaderboard {},
-                        active_class: "active-route",
-                        onclick: on_link_click,
-                        img {
-                            class: "route-icon",
-                            src: LEADERBOARD_SVG,
-                            width: 24,
-                            height: 24,
+            { if is_open() { rsx! {
+
+                nav { class: "sidebar",
+                    div { class: "routes-container normal-routes",
+                        Link {
+                            class: "route-entry",
+                            to: Route::Leaderboard {},
+                            active_class: "active-route",
+                            onclick: on_link_click,
+                            img {
+                                class: "route-icon",
+                                src: LEADERBOARD_SVG,
+                                width: 24,
+                                height: 24,
+                            }
+                            {Route::Leaderboard.as_str()}
                         }
-                        {Route::Leaderboard.as_str()}
+                    }
+                    div { class: "routes-container account-route",
+                        Link {
+                            class: "route-entry",
+                            to: Route::Account {},
+                            active_class: "active-route",
+                            onclick: on_link_click,
+                            img {
+                                class: "route-icon",
+                                src: ACCOUNT_SVG,
+                                width: 24,
+                                height: 24,
+                            }
+                            {username}
+                        }
                     }
                 }
-                div { class: "routes-container account-route",
-                    Link {
-                        class: if is_open() { "route-entry open" } else { "route-entry" },
-                        to: Route::Account {},
-                        active_class: "active-route",
-                        onclick: on_link_click,
-                        img {
-                            class: "route-icon",
-                            src: ACCOUNT_SVG,
-                            width: 24,
-                            height: 24,
-                        }
-                        {username}
-                    }
-                }
-            }
+
+            }} else { rsx! {} }}
 
             // Page content injected here
                 main { class: if is_open() { "main-content open" } else { "main-content" },

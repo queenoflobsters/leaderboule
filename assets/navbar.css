@@ -37,13 +37,10 @@
   bottom: 0;
   background-color: #111;
   z-index: 420; /* GO CONQUEST THE WEST */
-  display: none;
+  display: flex;
   flex-direction: column;
 }
 
-.sidebar.open {
-  display: flex;
-}
 
 .normal-routes {
   flex: 1;
