@@ -19,7 +19,6 @@ const HASH_SVG: Asset = asset!("assets/icons/hash.svg");
 #[component]
 pub fn Account() -> Element {
     let profile_hook = use_server_future(current_user::get_profile)?;
-    let nav = use_navigator();
     let mut error_msg = use_signal(String::new);
     let profile = match profile_hook() {
         Some(Ok(profile)) => profile,
@@ -35,6 +34,95 @@ pub fn Account() -> Element {
             temp
         }
     };
+
+    rsx! {
+            document::Stylesheet { href: ACCOUNT_CSS }
+
+            div { class: "account-container",
+                AccountTitle { username: &profile.username }
+                ProfileStats { profile: profile.clone() }
+
+                { if !error_msg.is_empty() { rsx! {
+                    p { class: "error-msg", {error_msg()}}
+                }} else { rsx!{} } }
+
+                Management { error_msg, email: &profile.username }
+
+        }
+    }
+}
+
+#[component]
+fn AccountTitle(username: String) -> Element {
+    rsx! {
+        img { class: "account-icon", src: ACCOUNT_SVG, }
+        p { class: "username-title",
+            {username}
+        }
+    }
+}
+
+#[component]
+fn ProfileStats(profile: UserProfile) -> Element {
+    rsx! {
+        div { class: "profile-container",
+            span { class: "primary-stat",
+                span { class: "primary-stat-title", "Elo"}
+                span { class: "stat-elo", "{profile.elo}"}
+            }
+            span { class: "secondary-stat",
+                "Record  "
+                span { class: "stat-elo", "{profile.best_elo}"}
+            }
+            span { class: "secondary-stat",
+                "Classement"
+                img { class: "stat-rank stat-icon-profile", src: HASH_SVG }
+                span { class: "stat-rank", "{profile.rank.unwrap_or(0)}" }
+            }
+        }
+        div { class: "profile-container",
+            span { class: "primary-stat",
+                span { class: "primary-stat-title", "Parties jouées" }
+                img { class: "stat-icon-profile stat-games-played", src: TOTAL_SVG }
+                span { class : "stat-games-played", "{profile.games_played}" }
+            }
+            span { class: "secondary-stat",
+                "Gagnées"
+                img { class: "stat-icon-profile stat-games-won", src: TROPHY_SVG }
+                span { class: "stat-games-won", "{profile.games_won}" }
+            }
+            span { class: "secondary-stat",
+                "Perdues"
+                img { class: "stat-icon-profile stat-games-lost", src: BROKEN_HEART_SVG }
+                span { class: "stat-games-lost", "{profile.games_lost}" }
+            }
+            span { class: "secondary-stat",
+                "Ratio"
+                img { class: "stat-icon-profile stat-win-ratio", src: PERCENT_SVG }
+                span { class: "stat-win-ratio", "{profile.win_ratio:.1}" }
+            }
+        }
+    }
+}
+
+#[component]
+fn Management(error_msg: Signal<String>, email: String) -> Element {
+    rsx! {
+        div { class: "profile-container management-container",
+            div {
+                "e-mail :"
+                span { class: "email", "{email}"}
+            }
+            DisconnectButton { error_msg }
+            UsernameChanger { error_msg }
+            PasswordChanger { error_msg }
+        }
+    }
+}
+
+#[component]
+fn DisconnectButton(error_msg: Signal<String>) -> Element {
+    let nav = use_navigator();
     let mut logout_button_message = use_signal(|| "Déconnexion");
     let mut logout_button_loading = use_signal(|| false);
     let logout_fn = move |_evt| {
@@ -52,198 +140,147 @@ pub fn Account() -> Element {
             }
         });
     };
-
-    let mut change_username_value = use_signal(String::new);
-    let mut change_username_password = use_signal(String::new);
-    let mut change_username_message = use_signal(|| "Changer le nom d'utilisateur".to_string());
-    let mut change_username_show = use_signal(|| false);
-    let mut change_username_loading = use_signal(|| false);
-    let change_username_fn = move |_evt| {
-        spawn(async move {
-            change_username_message.set("Chargement...".to_string());
-            change_username_loading.set(true);
-            match auth::change_username(
-                change_username_value.to_string(),
-                change_username_password.to_string(),
-            )
-            .await
-            {
-                Ok(Ok(())) => {
-                    _ = {
-                        change_username_message.set("Nom d'utilisateur changé avec succès".to_string());
-                        change_username_password.set(String::new());
-                        change_username_value.set(String::new());
-                        change_username_loading.set(false);
-                    }
-                }
-                Ok(Err(e)) => {
-                    change_username_message.set(e);
-                    change_username_loading.set(false);
-                }
-                Err(e) => {
-                    error_msg.set(e.to_string());
-                    change_username_message.set("Changer le nom d'utilisateur".to_string());
-                    change_username_loading.set(false)
-                }
-            }
-        });
-    };
-    let mut change_password_old = use_signal(String::new);
-    let mut change_password_new = use_signal(String::new);
-    let mut change_password_message = use_signal(|| "Changer le mot de passe".to_string());
-    let mut change_password_show = use_signal(|| false);
-    let mut change_password_loading = use_signal(|| false);
-    let change_password_fn = move |_evt| {
-        spawn(async move {
-            change_password_message.set("Chargement...".to_string());
-            change_password_loading.set(true);
-            match auth::change_password(
-                change_password_old.to_string(),
-                change_password_new.to_string(),
-            )
-            .await
-            {
-                Ok(Ok(())) => {
-                    _ = {
-                        change_password_message.set("Mot de passe changé avec succès".to_string());
-                        change_password_new.set(String::new());
-                        change_password_old.set(String::new());
-                        change_password_loading.set(false);
-                    }
-                }
-                Ok(Err(e)) => {
-                    change_password_message.set(e);
-                    change_password_loading.set(false);
-                }
-                Err(e) => {
-                    error_msg.set(e.to_string());
-                    change_password_message.set("Changer le mot de passe".to_string());
-                    change_password_loading.set(false)
-                }
-            }
-        });
-    };
-
-
     rsx! {
-        document::Stylesheet { href: ACCOUNT_CSS }
-        div { class: "account-container",
-            img { class: "account-icon", src: ACCOUNT_SVG, }
-            p { class: "username-title",
-                {profile.username}
-            }
-            div { class: "profile-container",
-                span { class: "primary-stat",
-                    span { class: "primary-stat-title", "Elo"}
-                    span { class: "stat-elo", "{profile.elo}"}
-                }
-                span { class: "secondary-stat",
-                    "Record  "
-                    span { class: "stat-elo", "{profile.best_elo}"}
-                }
-                span { class: "secondary-stat",
-                    "Classement"
-                    img { class: "stat-rank stat-icon", src: HASH_SVG }
-                    span { class: "stat-rank", "{profile.rank.unwrap_or(0)}" }
-                }
-            }
-            div { class: "profile-container",
-                span { class: "primary-stat",
-                    span { class: "primary-stat-title", "Parties jouées" }
-                    img { class: "stat-icon stat-games-played", src: TOTAL_SVG }
-                    span { class : "stat-games-played", "{profile.games_played}" }
-                }
-                span { class: "secondary-stat",
-                    "Gagnées"
-                    img { class: "stat-icon stat-games-won", src: TROPHY_SVG }
-                    span { class: "stat-games-won", "{profile.games_won}" }
-                }
-                span { class: "secondary-stat",
-                    "Perdues"
-                    img { class: "stat-icon stat-games-lost", src: BROKEN_HEART_SVG }
-                    span { class: "stat-games-lost", "{profile.games_lost}" }
-                }
-                span { class: "secondary-stat",
-                    "Ratio"
-                    img { class: "stat-icon stat-win-ratio", src: PERCENT_SVG }
-                    span { class: "stat-win-ratio", "{profile.win_ratio:.1}" }
-                }
-            }
+        button {
+            onclick: logout_fn,
+            disabled: logout_button_loading(),
+            {logout_button_message()}
+        }
+    }
+}
 
-            { if !error_msg.is_empty() { rsx! {
-                p { class: "error-msg", {error_msg()}}
-            }} else { rsx!{} } }
+#[component]
+fn UsernameChanger(error_msg: Signal<String>) -> Element {
+    let mut value = use_signal(String::new);
+    let mut password = use_signal(String::new);
+    let mut message = use_signal(|| "Changer le nom d'utilisateur".to_string());
+    let mut show = use_signal(|| false);
+    let mut loading = use_signal(|| false);
+    let change_username_fn = move |_evt| {
+        message.set("Chargement...".to_string());
+        loading.set(true);
+        spawn(async move {
+            match auth::change_username(value.to_string(), password.to_string()).await {
+                Ok(Ok(())) => {
+                    _ = {
+                        message.set("Nom d'utilisateur changé avec succès".to_string());
+                        password.set(String::new());
+                        value.set(String::new());
+                        loading.set(false);
+                    }
+                }
+                Ok(Err(e)) => {
+                    message.set(e);
+                    loading.set(false);
+                }
+                Err(e) => {
+                    error_msg.set(e.to_string());
+                    message.set("Changer le nom d'utilisateur".to_string());
+                    loading.set(false)
+                }
+            }
+        });
+    };
+    if show() {
+        rsx! {
+            div { class: "profile-container important-container",
+                span { "Nouveau nom d'utilisateur" }
+                input {
+                    class: "important-input",
+                    r#type: "username",
+                    placeholder: "Nom d'utilisateur",
+                    value: "{value}",
+                    oninput: move |e| value.set(e.value()),
+                }
+                span { "Mot de passe" }
+                input {
+                    class: "important-input",
+                    r#type: "password",
+                    placeholder: "Mot de passe",
+                    value: "{password}",
+                    oninput: move |e| password.set(e.value()),
+                }
+                button { class: "important-button",
+                    disabled: loading(),
+                    onclick: change_username_fn,
+                    "{message}"
+                }
+            }
+        }
+    } else {
+        rsx! {
+            button { class: "important-button",
+                onclick: move |_| show.set(true),
+                "{message}"
+            }
+        }
+    }
+}
 
-            div { class: "profile-container management-container",
-                div {
-                    "e-mail :"
-                    span { class: "email", "{profile.email}"}
+#[component]
+fn PasswordChanger(error_msg: Signal<String>) -> Element {
+    let mut password_old = use_signal(String::new);
+    let mut password_new = use_signal(String::new);
+    let mut message = use_signal(|| "Changer le mot de passe".to_string());
+    let mut show = use_signal(|| false);
+    let mut loading = use_signal(|| false);
+    let change_password_fn = move |_evt| {
+        message.set("Chargement...".to_string());
+        loading.set(true);
+        spawn(async move {
+            match auth::change_password(password_old.to_string(), password_new.to_string()).await {
+                Ok(Ok(())) => {
+                    _ = {
+                        message.set("Mot de passe changé avec succès".to_string());
+                        password_new.set(String::new());
+                        password_old.set(String::new());
+                        loading.set(false);
+                    }
                 }
-                button {
-                    onclick: logout_fn,
-                    disabled: logout_button_loading(),
-                    {logout_button_message()}
+                Ok(Err(e)) => {
+                    message.set(e);
+                    loading.set(false);
                 }
-                { if change_username_show() { rsx! {
-                    div { class: "profile-container important-container",
-                        span { "Nouveau nom d'utilisateur" }
-                        input {
-                            class: "important-input",
-                            r#type: "username",
-                            placeholder: "Nom d'utilisateur",
-                            value: "{change_username_value}",
-                            oninput: move |e| change_username_value.set(e.value()),
-                        }
-                        span { "Mot de passe" }
-                        input {
-                            class: "important-input",
-                            r#type: "password",
-                            placeholder: "Mot de passe",
-                            value: "{change_username_password}",
-                            oninput: move |e| change_username_password.set(e.value()),
-                        }
-                        button { class: "important-button",
-                            disabled: change_username_loading(),
-                            onclick: change_username_fn,
-                            "{change_username_message}"
-                        }
-                    }
-                }} else { rsx!{
-                    button { class: "important-button",
-                        onclick: move |_| change_username_show.set(true),
-                        "{change_username_message}"
-                    }
-                }}}
-                { if change_password_show() { rsx! {
-                    div { class: "profile-container important-container",
-                        span { "Mot de passe actuel" }
-                        input {
-                            class: "important-input",
-                            r#type: "password",
-                            placeholder: "Mot de passe actuel",
-                            value: "{change_password_old}",
-                            oninput: move |e| change_password_old.set(e.value()),
-                        }
-                        span { "Nouveau mot de passe" }
-                        input {
-                            class: "important-input",
-                            r#type: "password",
-                            placeholder: "Nouveau mot de passe",
-                            value: "{change_password_new}",
-                            oninput: move |e| change_password_new.set(e.value()),
-                        }
-                        button { class: "important-button",
-                            disabled: change_password_loading(),
-                            onclick: change_password_fn,
-                            "{change_password_message}"
-                        }
-                    }
-                }} else { rsx!{
-                    button { class: "important-button",
-                        onclick: move |_| change_password_show.set(true),
-                        "{change_password_message}"
-                    }
-                }}}
+                Err(e) => {
+                    error_msg.set(e.to_string());
+                    message.set("Changer le mot de passe".to_string());
+                    loading.set(false)
+                }
+            }
+        });
+    };
+
+    if show() {
+        rsx! {
+            div { class: "profile-container important-container",
+                span { "Mot de passe actuel" }
+                input {
+                    class: "important-input",
+                    r#type: "password",
+                    placeholder: "Mot de passe actuel",
+                    value: "{password_old}",
+                    oninput: move |e| password_old.set(e.value()),
+                }
+                span { "Nouveau mot de passe" }
+                input {
+                    class: "important-input",
+                    r#type: "password",
+                    placeholder: "Nouveau mot de passe",
+                    value: "{password_new}",
+                    oninput: move |e| password_new.set(e.value()),
+                }
+                button { class: "important-button",
+                    disabled: loading(),
+                    onclick: change_password_fn,
+                    "{message}"
+                }
+            }
+        }
+    } else {
+        rsx! {
+            button { class: "important-button",
+                onclick: move |_| show.set(true),
+                "{message}"
             }
         }
     }

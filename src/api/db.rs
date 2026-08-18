@@ -6,7 +6,7 @@ pub mod current_user {
     use super::*;
 
     /// User database model
-    #[derive(Serialize, Deserialize, Clone, Default)]
+    #[derive(Serialize, Deserialize, Clone, Default, PartialEq)]
     pub struct UserProfile {
         pub email: String,
         pub username: String,
