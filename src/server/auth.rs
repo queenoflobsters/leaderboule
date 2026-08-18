@@ -324,6 +324,18 @@ pub mod account {
     /// 1. Search inside the DB for user with this email
     pub async fn exists(email: &str, password: &str) -> Result<UserAuthTry, ServerFnError> {
         debug!("AUTH : searching inside db for user with email `{}`", email);
+
+        let Some(user_record) = get_user_record(email).await? else {
+            debug!("AUTH : user not found in db");
+            return Ok(UserAuthTry::NonexistentAccount);
+        };
+
+        debug!("AUTH : user found in db");
+
+        credentials::verify(user_record.id, password).await
+    }
+
+    pub async fn get_user_record(email: &str) -> Result<Option<db::UserRecord>, ServerFnError> {
         let db = db::get().await;
 
         let user_match: Option<db::UserRecord> = db
@@ -334,33 +346,7 @@ pub mod account {
             .take(0)
             .map_err(|e| ServerFnError::new(e.to_string()))?;
 
-        let Some(user_record) = user_match else {
-            debug!("AUTH : user not found in db");
-            return Ok(UserAuthTry::NonexistentAccount);
-        };
-        debug!("AUTH : user found in db");
-        let user_cred_record_match: Option<UserCredRecord> = db
-            .query("SELECT * FROM ONLY user_cred WHERE user_id = $user_id")
-            .bind(("user_id", user_record.id.clone()))
-            .await
-            .map_err(|e| ServerFnError::new(e.to_string()))?
-            .take(0)
-            .map_err(|e| ServerFnError::new(e.to_string()))?;
-
-        let Some(user_cred_record) = user_cred_record_match else {
-            return Ok(UserAuthTry::NonexistentCredentials(user_record.id));
-        };
-
-        match password::verify(password, &user_cred_record.password_hash) {
-            true => {
-                debug!("AUTH : passwords matching");
-                Ok(UserAuthTry::Success(user_record.id))
-            }
-            false => {
-                debug!("AUTH : passwords are not matching");
-                Ok(UserAuthTry::WrongPassword)
-            }
-        }
+        Ok(user_match)
     }
 
     /// 2. Search if they are registered in Helloasso
@@ -378,8 +364,8 @@ pub mod account {
             // Create an account and return the user id
             Some(payer) => {
                 debug!("AUTH : Helloasso has user with email `{}`", email);
-                let user_id = create_user(payer).await?;
-                create_credentials(&user_id, password)
+                let user_id = create_user_record_in_db(payer).await?;
+                credentials::create(&user_id, password)
                     .await?
                     .map_err(|s| ServerFnError::new(s))?;
                 Ok(Some(user_id))
@@ -388,7 +374,9 @@ pub mod account {
     }
 
     /// Returns the user id
-    async fn create_user(payer: helloasso::PayerInfo) -> Result<UserId, ServerFnError> {
+    async fn create_user_record_in_db(
+        payer: helloasso::PayerInfo,
+    ) -> Result<UserId, ServerFnError> {
         debug!("AUTH : creating user with : {:?}", &payer);
 
         let db = db::get().await;
@@ -431,34 +419,9 @@ pub mod account {
         );
         Ok(id)
     }
-
-    pub async fn create_credentials(
-        user_id: &UserId,
-        password: &str,
-    ) -> Result<Result<(), String>, ServerFnError> {
-        if password.len() < 8 {
-            return Ok(Err("Mot de passe trop court".to_string()));
-        }
-        let db = db::get().await;
-        let user_cred_id = UserCredId::new_v7();
-        let password_hash = password::create_hash(password)?;
-        let user_cred_record = UserCredRecord {
-            id: user_cred_id.clone(),
-            user_id: user_id.clone(),
-            password_hash,
-        };
-
-        let _created: Option<UserCredRecord> = db
-            .create(&user_cred_id.0)
-            .content(user_cred_record)
-            .await
-            .map_err(|e| ServerFnError::new(e.to_string()))?;
-
-        Ok(Ok(()))
-    }
 }
 
-pub mod password {
+pub mod credentials {
     use super::*;
 
     pub fn create_hash(password: &str) -> Result<String, ServerFnError> {
@@ -473,13 +436,54 @@ pub mod password {
         Ok(password_hash.to_string())
     }
 
-    pub fn verify(password: &str, stored_hash: &str) -> bool {
-        let Ok(parsed_hash) = PasswordHash::new(stored_hash) else {
-            return false;
+    pub async fn verify(user_id: UserId, password: &str) -> Result<UserAuthTry, ServerFnError> {
+        let db = db::get().await;
+
+        let user_cred_record_match: Option<UserCredRecord> = db
+            .query("SELECT * FROM ONLY user_cred WHERE user_id = $user_id")
+            .bind(("user_id", user_id.clone()))
+            .await
+            .map_err(|e| ServerFnError::new(e.to_string()))?
+            .take(0)
+            .map_err(|e| ServerFnError::new(e.to_string()))?;
+
+        let Some(user_cred_record) = user_cred_record_match else {
+            return Ok(UserAuthTry::NonexistentCredentials(user_id));
         };
 
-        Argon2::default()
-            .verify_password(password.as_bytes(), &parsed_hash)
-            .is_ok()
+        let Ok(parsed_hash) = PasswordHash::new(&user_cred_record.password_hash) else {
+            return Err(ServerFnError::new("Couldn't create hash from string in db"));
+        };
+
+        match Argon2::default()
+            .verify_password(password.as_bytes(), &parsed_hash) {
+            Ok(()) => Ok(UserAuthTry::Success(user_id)),
+            Err(_) => Ok(UserAuthTry::WrongPassword)
+        }
+    }
+
+    pub async fn create(
+        user_id: &UserId,
+        password: &str,
+    ) -> Result<Result<(), String>, ServerFnError> {
+        if password.len() < 8 {
+            return Ok(Err("Mot de passe trop court".to_string()));
+        }
+        let db = db::get().await;
+        let user_cred_id = UserCredId::new_v7();
+        let password_hash = credentials::create_hash(password)?;
+        let user_cred_record = UserCredRecord {
+            id: user_cred_id.clone(),
+            user_id: user_id.clone(),
+            password_hash,
+        };
+
+        let _created: Option<UserCredRecord> = db
+            .create(&user_cred_id.0)
+            .content(user_cred_record)
+            .await
+            .map_err(|e| ServerFnError::new(e.to_string()))?;
+
+        Ok(Ok(()))
     }
 }

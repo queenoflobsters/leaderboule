@@ -24,7 +24,7 @@ pub enum Route {
 }
 
 impl Route {
-    pub fn as_str(&self) -> &'static str {
+    pub fn title(&self) -> &'static str {
         match self {
             Route::Leaderboard => "Classement",
             Route::Login => "Connexion",

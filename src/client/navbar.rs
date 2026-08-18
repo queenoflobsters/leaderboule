@@ -44,7 +44,7 @@ pub fn Navbar() -> Element {
                         alt: "Menu",
                     }
                 }
-                div { class: "current-route-title", {current_route.as_str()} }
+                div { class: "current-route-title", {current_route.title()} }
             }
 
             // Sliding Sidebar
@@ -63,7 +63,7 @@ pub fn Navbar() -> Element {
                                 width: 24,
                                 height: 24,
                             }
-                            {Route::Leaderboard.as_str()}
+                            {Route::Leaderboard.title()}
                         }
                     }
                     div { class: "routes-container account-route",
