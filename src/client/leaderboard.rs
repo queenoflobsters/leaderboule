@@ -175,24 +175,24 @@ fn CardItem(use_index: Option<usize>, user: LeaderboardUserCard) -> Element {
             div { class: "player-elo", "{user.elo}" }
             div { class: "player-stats",
                 span { class: "stat-container games-won",
-                    img { class: "stat-icon", src: TROPHY_SVG}
+                    img { class: "stat-icon-card", src: TROPHY_SVG}
                     "{user.games_won}"
                 }
                 span { class: "stat-container games-lost",
-                    img { class: "stat-icon", src: BROKEN_HEART_SVG}
+                    img { class: "stat-icon-card", src: BROKEN_HEART_SVG}
                     "{user.games_lost}"
                 }
                 span { class: "stat-container games-played",
-                    img { class: "stat-icon", src: TOTAL_SVG}
+                    img { class: "stat-icon-card", src: TOTAL_SVG}
                     "{user.games_played}"
                 }
                 span { class: "stat-container ratio",
-                    img { class: "stat-icon", src: PERCENT_SVG}
+                    img { class: "stat-icon-card", src: PERCENT_SVG}
                     "{user.win_ratio:.1}"
                 }
             }
             div { class : "player-rank",
-                img { class: "stat-icon", src: HASH_SVG}
+                img { class: "stat-icon-card", src: HASH_SVG}
                 "{user.rank.unwrap_or(0)}"
             }
         }

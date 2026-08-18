@@ -59,8 +59,6 @@
   background-color: #333;
 }
 
-
-
 .reload-button {
   display: flex;
   background-color: #840000;
@@ -117,7 +115,7 @@
   gap: 0.3rem;
 }
 
-.stat-icon {
+.stat-icon-card {
   width: 1.35rem;
   height: 1.35rem;
 }
