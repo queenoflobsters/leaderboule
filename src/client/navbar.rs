@@ -1,10 +1,10 @@
 use crate::{api::db::current_user, client::route::Route};
 use dioxus::prelude::*;
 
-const NAVBAR_CSS: Asset = asset!("assets/navbar.css");
-const HAMBURGER_SVG: Asset = asset!("assets/hamburger.svg");
-const LEADERBOARD_SVG: Asset = asset!("assets/leaderboard.svg");
-const ACCOUNT_SVG: Asset = asset!("assets/account.svg");
+const NAVBAR_CSS: Asset = asset!("assets/style/navbar.css");
+const HAMBURGER_SVG: Asset = asset!("assets/icons/hamburger.svg");
+const LEADERBOARD_SVG: Asset = asset!("assets/icons/leaderboard.svg");
+const ACCOUNT_SVG: Asset = asset!("assets/icons/account.svg");
 
 #[component]
 pub fn Navbar() -> Element {

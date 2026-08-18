@@ -54,7 +54,7 @@ pub mod current_user {
                 "Did not find the user's profile".to_string(),
             ))?;
         // Fill the rank
-        user_profile.rank = Some(db::get_user_elo_rank(user_profile.elo).await?);
+        user_profile.rank = Some(db::get_elo_rank(user_profile.elo).await?);
         Ok(user_profile)
     }
 }

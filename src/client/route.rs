@@ -4,7 +4,7 @@ use crate::client::{
 };
 use dioxus::prelude::*;
 
-const MAIN_CSS: Asset = asset!("/assets/main.css");
+const MAIN_CSS: Asset = asset!("/assets/style/main.css");
 
 #[derive(Routable, Clone, PartialEq)]
 pub enum Route {

@@ -1,13 +1,13 @@
 use crate::api::db::global::{self, LeaderboardSortMethod, LeaderboardUserCard};
 use dioxus::{core::Task, prelude::*};
 
-const LEADERBOARD_CSS: Asset = asset!("assets/leaderboard.css");
-const RELOAD_SVG: Asset = asset!("assets/reload.svg");
-const SORT_SVG: Asset = asset!("assets/sort.svg");
-const TROPHY_SVG: Asset = asset!("assets/trophy.svg");
-const BROKEN_HEART_SVG: Asset = asset!("assets/broken-heart.svg");
-const TOTAL_SVG: Asset = asset!("assets/total.svg");
-const PERCENT_SVG: Asset = asset!("assets/percent.svg");
+const LEADERBOARD_CSS: Asset = asset!("assets/style/leaderboard.css");
+const RELOAD_SVG: Asset = asset!("assets/icons/reload.svg");
+const SORT_SVG: Asset = asset!("assets/icons/sort.svg");
+const TROPHY_SVG: Asset = asset!("assets/icons/trophy.svg");
+const BROKEN_HEART_SVG: Asset = asset!("assets/icons/broken-heart.svg");
+const TOTAL_SVG: Asset = asset!("assets/icons/total.svg");
+const PERCENT_SVG: Asset = asset!("assets/icons/percent.svg");
 
 async fn sleep_ms(millis: u32) {
     // HORRENDOUS call to JS for wait helper

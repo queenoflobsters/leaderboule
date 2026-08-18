@@ -8,8 +8,8 @@ use crate::{
     client::route::Route,
 };
 
-const ACCOUNT_CSS: Asset = asset!("/assets/account.css");
-const ACCOUNT_SVG: Asset = asset!("/assets/account.svg");
+const ACCOUNT_CSS: Asset = asset!("/assets/style/account.css");
+const ACCOUNT_SVG: Asset = asset!("/assets/icons/account.svg");
 
 #[component]
 pub fn Account() -> Element {

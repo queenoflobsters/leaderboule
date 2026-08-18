@@ -98,16 +98,16 @@ pub async fn get_leaderboard_cards(
 
     // Fill with the rank
     for card in &mut cards {
-        card.rank = Some(get_user_elo_rank(card.elo).await?)
+        card.rank = Some(get_elo_rank(card.elo).await?)
     }
 
     Ok(cards)
 }
 
-pub async fn get_user_elo_rank(elo: u64) -> Result<u64, ServerFnError> {
+pub async fn get_elo_rank(elo: u64) -> Result<u64, ServerFnError> {
     let db = get().await;
     let higher_count: Option<u64> = db
-        .query("count(SELECT VALUE id FROM user WHERE elo > $this_elo)")
+        .query("count(SELECT VALUE id FROM user WHERE elo > $this_elo)+1")
         .bind(("this_elo", elo))
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?
