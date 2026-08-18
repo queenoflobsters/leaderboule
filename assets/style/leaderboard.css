@@ -143,6 +143,16 @@
   filter: drop-shadow(0 0 0.5em color-mix(in srgb, currentColor 50%, transparent));
 }
 
+.player-rank {
+  color: #bbb;
+  display: inline-flex;
+  align-items: center;
+  font-size: 1.1rem;
+  font-weight: bold;
+  justify-content: flex-end;
+  filter: drop-shadow(0 0 0.5em color-mix(in srgb, currentColor 50%, transparent));
+}
+
 /* PODIUM */
 .first,
 .second,

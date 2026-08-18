@@ -8,6 +8,7 @@ const TROPHY_SVG: Asset = asset!("assets/icons/trophy.svg");
 const BROKEN_HEART_SVG: Asset = asset!("assets/icons/broken-heart.svg");
 const TOTAL_SVG: Asset = asset!("assets/icons/total.svg");
 const PERCENT_SVG: Asset = asset!("assets/icons/percent.svg");
+const HASH_SVG: Asset = asset!("assets/icons/hash.svg");
 
 async fn sleep_ms(millis: u32) {
     // HORRENDOUS call to JS for wait helper
@@ -189,6 +190,10 @@ fn CardItem(use_index: Option<usize>, user: LeaderboardUserCard) -> Element {
                     img { class: "stat-icon", src: PERCENT_SVG}
                     "{user.win_ratio:.1}"
                 }
+            }
+            div { class : "player-rank",
+                img { class: "stat-icon", src: HASH_SVG}
+                "{user.rank.unwrap_or(0)}"
             }
         }
     }

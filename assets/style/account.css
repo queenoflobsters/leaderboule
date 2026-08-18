@@ -1,5 +1,6 @@
+/* GLOBAL */
 .account-container {
-  width: fit-content;
+  width: 30rem;
   max-width: 100%;
   margin: 0 auto;
   display: flex;
@@ -14,5 +15,85 @@
 
 .username-title {
   font-weight: bold;
-  font-size: 2rem;
+  font-size: 2.2rem;
+  margin: 0 1rem;
+  align-self: center;
+}
+
+.profile-container {
+  display: flex;
+  flex-direction: column;
+  border: 0.15rem solid #555;
+  border-radius: 0.4rem;
+  overflow: hidden;
+  padding: 0.7rem 1rem;
+  margin: 1rem 0;
+}
+
+/* PROFILE STATS */
+.primary-stat {
+  font-weight: bold;
+  display: inline-flex;
+  align-items: center;
+  font-size: 1.7rem;
+}
+
+.secondary-stat {
+  font-weight: bold;
+  display: inline-flex;
+  font-size: 1.3rem;
+  margin: 0.3rem 0;
+  align-items: center;
+}
+
+.stat-icon {
+  width: 1.35em;
+  height: 1.35em;
+  margin-left: 0.3em;
+  margin-right: 0.1em;
+}
+
+.stat-elo {
+  padding-left: 0.6rem;
+  color: #0ecc08;
+  text-shadow: 0 0 0.5em color-mix(in srgb, currentColor 70%, transparent);
+}
+
+.stat-rank {
+  color: #bbb;
+  text-shadow: 0 0 0.5em color-mix(in srgb, currentColor 70%, transparent);
+}
+
+.stat-games-played {  
+  color: rgb(58, 118, 245);
+  filter: drop-shadow(0 0 0.35rem color-mix(in srgb, currentColor 75%, transparent));
+}
+
+.stat-games-won {
+  color: goldenrod;
+  filter: drop-shadow(0 0 0.35rem color-mix(in srgb, currentColor 75%, transparent));
+}
+
+.stat-games-lost {
+  color: #fc5356;
+  filter: drop-shadow(0 0 0.35rem color-mix(in srgb, currentColor 75%, transparent));
+}
+
+.stat-win-ratio {
+  color: #bbb;
+  filter: drop-shadow(0 0 0.5em color-mix(in srgb, currentColor 50%, transparent));  
+}
+
+/* MANAGEMENT */
+.email {
+  padding-left: 1rem;
+  font-weight: bold;
+}
+
+.management-container {
+  gap: 1rem;
+}
+
+.error-msg {
+  color: #fc5356;
 }
