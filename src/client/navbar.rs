@@ -10,9 +10,8 @@ const ACCOUNT_SVG: Asset = asset!("assets/account.svg");
 pub fn Navbar() -> Element {
     let username_hook = use_server_future(current_user::get_username)?;
     let username = match username_hook() {
-        Some(Ok(Some(username))) => username,
-        Some(Ok(None)) => "Invité".to_string(),
-        Some(Err(_)) => "ERREUR SERVEUR".to_string(),
+        Some(Ok(username)) => username,
+        Some(Err(e)) => format!("ERREUR: {}", e.to_string()),
         None => "Chargement...".to_string()
     };
     let mut is_open = use_signal(|| false);

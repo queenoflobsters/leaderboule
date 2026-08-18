@@ -19,6 +19,17 @@ use crate::{
 pub static DB: OnceCell<Surreal<Client>> = OnceCell::const_new();
 const INIT_SQL: &'static str = include_str!("../../db_init.sql");
 
+/// User database model
+#[derive(Serialize, Deserialize, Clone, SurrealValue)]
+pub struct UserRecord {
+    pub id: UserId,
+    pub email: String,
+    pub username: String,
+    pub elo: u64,
+    pub games_played: u64,
+    pub games_won: u64,
+}
+
 /// Initialize SurrealDB connection singleton
 pub async fn get() -> &'static Surreal<Client> {
     DB.get_or_init(|| async {
@@ -75,7 +86,7 @@ pub async fn get_leaderboard_cards(
     let query =
         format!("SELECT * FROM user {query_clause} {sort_clause} LIMIT $limit START $start");
 
-    let cards: Vec<LeaderboardUserCard> = db
+    let mut cards: Vec<LeaderboardUserCard> = db
         .query(query)
         .bind(("limit", page_size))
         .bind(("start", page * page_size))
@@ -85,20 +96,27 @@ pub async fn get_leaderboard_cards(
         .take(0)
         .map_err(|e| ServerFnError::new(e.to_string()))?;
 
+    // Fill with the rank
+    for card in &mut cards {
+        card.rank = Some(get_user_elo_rank(card.elo).await?)
+    }
+
     Ok(cards)
 }
 
-/// User database model
-#[derive(Serialize, Deserialize, Clone, SurrealValue)]
-pub struct UserRecord {
-    pub id: UserId,
-    pub email: String,
-    pub username: String,
-    pub elo: u64,
-    pub games_played: u64,
-    pub games_won: u64,
+pub async fn get_user_elo_rank(elo: u64) -> Result<u64, ServerFnError> {
+    let db = get().await;
+    let higher_count: Option<u64> = db
+        .query("count(SELECT VALUE id FROM user WHERE elo > $this_elo)")
+        .bind(("this_elo", elo))
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))?
+        .take(0)
+        .map_err(|e| ServerFnError::new(e.to_string()))?;
+    higher_count.ok_or(ServerFnError::new(
+        "Couldn't get the user's rank".to_string(),
+    ))
 }
-
 
 impl SurrealValue for LeaderboardUserCard {
     fn kind_of() -> surrealdb::types::Kind {
@@ -106,38 +124,34 @@ impl SurrealValue for LeaderboardUserCard {
     }
 
     fn into_value(self) -> surrealdb::types::Value {
-        panic!("You should never write a LeaderboardUserCard into something");
+        panic!("You should never write a LeaderboardUserCard into the database");
     }
 
     fn from_value(value: surrealdb::types::Value) -> Result<Self, surrealdb::Error>
     where
         Self: Sized,
     {
-        use surrealdb::types::{Number, SurrealValue, Value};
+        use surrealdb::types::{SurrealValue, Value};
 
         match value {
-            Value::Object(mut obj) => {
-                Ok(Self {
-                    username: SurrealValue::from_value(
-                        obj.remove("username").unwrap_or(Value::None),
-                    )?,
-                    elo: SurrealValue::from_value(obj.remove("elo").unwrap_or(Value::None))?,
-                    games_played: SurrealValue::from_value(
-                        obj.remove("games_played").unwrap_or(Value::None),
-                    )?,
-                    games_won: SurrealValue::from_value(
-                        obj.remove("games_won").unwrap_or(Value::None),
-                    )?,
-                    games_lost: SurrealValue::from_value(
-                        obj.remove("games_lost").unwrap_or(Value::None),
-                    )?,
-                    win_ratio: match obj.remove("win_ratio").unwrap_or(Value::None) {
-                        Value::Number(Number::Float(f)) => f.round() as u64,
-                        Value::Number(Number::Int(i)) => i.max(0) as u64,
-                        v => SurrealValue::from_value(v)?,
-                    },
-                })
-            }
+            Value::Object(mut obj) => Ok(Self {
+                username: SurrealValue::from_value(obj.remove("username").unwrap_or(Value::None))?,
+                elo: SurrealValue::from_value(obj.remove("elo").unwrap_or(Value::None))?,
+                best_elo: SurrealValue::from_value(obj.remove("best_elo").unwrap_or(Value::None))?,
+                games_played: SurrealValue::from_value(
+                    obj.remove("games_played").unwrap_or(Value::None),
+                )?,
+                games_won: SurrealValue::from_value(
+                    obj.remove("games_won").unwrap_or(Value::None),
+                )?,
+                games_lost: SurrealValue::from_value(
+                    obj.remove("games_lost").unwrap_or(Value::None),
+                )?,
+                win_ratio: SurrealValue::from_value(
+                    obj.remove("win_ratio").unwrap_or(Value::None),
+                )?,
+                rank: None,
+            }),
             other => <()>::from_value(other).map(|_| unreachable!()),
         }
     }
@@ -148,41 +162,35 @@ impl SurrealValue for UserProfile {
     }
 
     fn into_value(self) -> surrealdb::types::Value {
-        panic!("You should never write a LeaderboardUserCard into something");
+        panic!("You should never write a UserProfile into the database");
     }
 
     fn from_value(value: surrealdb::types::Value) -> Result<Self, surrealdb::Error>
     where
         Self: Sized,
     {
-        use surrealdb::types::{Number, SurrealValue, Value};
+        use surrealdb::types::{SurrealValue, Value};
 
         match value {
-            Value::Object(mut obj) => {
-                Ok(Self {
-                    email: SurrealValue::from_value(
-                        obj.remove("email").unwrap_or(Value::None),
-                    )?,
-                    username: SurrealValue::from_value(
-                        obj.remove("username").unwrap_or(Value::None),
-                    )?,
-                    elo: SurrealValue::from_value(obj.remove("elo").unwrap_or(Value::None))?,
-                    games_played: SurrealValue::from_value(
-                        obj.remove("games_played").unwrap_or(Value::None),
-                    )?,
-                    games_won: SurrealValue::from_value(
-                        obj.remove("games_won").unwrap_or(Value::None),
-                    )?,
-                    games_lost: SurrealValue::from_value(
-                        obj.remove("games_lost").unwrap_or(Value::None),
-                    )?,
-                    win_ratio: match obj.remove("win_ratio").unwrap_or(Value::None) {
-                        Value::Number(Number::Float(f)) => f.round() as u64,
-                        Value::Number(Number::Int(i)) => i.max(0) as u64,
-                        v => SurrealValue::from_value(v)?,
-                    },
-                })
-            }
+            Value::Object(mut obj) => Ok(Self {
+                email: SurrealValue::from_value(obj.remove("email").unwrap_or(Value::None))?,
+                username: SurrealValue::from_value(obj.remove("username").unwrap_or(Value::None))?,
+                elo: SurrealValue::from_value(obj.remove("elo").unwrap_or(Value::None))?,
+                best_elo: SurrealValue::from_value(obj.remove("best_elo").unwrap_or(Value::None))?,
+                games_played: SurrealValue::from_value(
+                    obj.remove("games_played").unwrap_or(Value::None),
+                )?,
+                games_won: SurrealValue::from_value(
+                    obj.remove("games_won").unwrap_or(Value::None),
+                )?,
+                games_lost: SurrealValue::from_value(
+                    obj.remove("games_lost").unwrap_or(Value::None),
+                )?,
+                win_ratio: SurrealValue::from_value(
+                    obj.remove("win_ratio").unwrap_or(Value::None),
+                )?,
+                rank: None,
+            }),
             other => <()>::from_value(other).map(|_| unreachable!()),
         }
     }

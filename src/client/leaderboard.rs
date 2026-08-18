@@ -187,7 +187,7 @@ fn CardItem(use_index: Option<usize>, user: LeaderboardUserCard) -> Element {
                 }
                 span { class: "stat-container ratio",
                     img { class: "stat-icon", src: PERCENT_SVG}
-                    "{user.win_ratio}"
+                    "{user.win_ratio:.1}"
                 }
             }
         }

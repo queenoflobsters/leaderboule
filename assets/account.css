@@ -1,4 +1,4 @@
-.account-container {  
+.account-container {
   width: fit-content;
   max-width: 100%;
   margin: 0 auto;
@@ -8,6 +8,8 @@
 
 .account-icon {
   align-self: center;
+  width: 10rem;
+  height: 10rem;
 }
 
 .username-title {
