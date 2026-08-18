@@ -64,7 +64,7 @@
   text-shadow: 0 0 0.5em color-mix(in srgb, currentColor 70%, transparent);
 }
 
-.stat-games-played {  
+.stat-games-played {
   color: rgb(58, 118, 245);
   filter: drop-shadow(0 0 0.35rem color-mix(in srgb, currentColor 75%, transparent));
 }
@@ -81,7 +81,11 @@
 
 .stat-win-ratio {
   color: #bbb;
-  filter: drop-shadow(0 0 0.5em color-mix(in srgb, currentColor 50%, transparent));  
+  filter: drop-shadow(0 0 0.5em color-mix(in srgb, currentColor 50%, transparent));
+}
+
+.error-msg {
+  color: #fc5356;
 }
 
 /* MANAGEMENT */
@@ -94,6 +98,25 @@
   gap: 1rem;
 }
 
-.error-msg {
-  color: #fc5356;
+
+ .important-container {
+   gap: 0.7rem;
+ }
+
+.important-button {
+  color: white;
+  margin-top: 0.5rem;
+  background-color: #840000;
+ }
+
+
+.important-input {
+  text-indent: 0.5rem;
+  border: solid 0.1rem #840000;
+  height: 2.5rem;
+  outline: none;
+  box-shadow: none;
+  color: white;
+  background-color: #222;
+  border-radius: 0.3rem;
 }

@@ -33,7 +33,7 @@ pub fn Account() -> Element {
             let mut temp = UserProfile::default();
             temp.username = "Chargement...".to_string();
             temp
-        },
+        }
     };
     let mut logout_button_message = use_signal(|| "Déconnexion");
     let mut logout_button_loading = use_signal(|| false);
@@ -48,10 +48,18 @@ pub fn Account() -> Element {
                     error_msg.set(e.to_string());
                     logout_button_message.set("Déconnexion");
                     logout_button_loading.set(false)
-                },
+                }
             }
         });
     };
+
+    let mut change_username_message = use_signal(|| "Changer le nom d'utilisateur".to_string());
+    let mut change_username_show = use_signal(|| false);
+    let mut change_username_loading = use_signal(|| false);
+
+    let mut change_password_message = use_signal(|| "Changer le mot de passe".to_string());
+    let mut change_password_show = use_signal(|| false);
+    let mut change_password_loading = use_signal(|| false);
 
     rsx! {
         document::Stylesheet { href: ACCOUNT_CSS }
@@ -76,7 +84,7 @@ pub fn Account() -> Element {
                 }
             }
             div { class: "profile-container",
-                span { class: "primary-stat", 
+                span { class: "primary-stat",
                     span { class: "primary-stat-title", "Parties jouées" }
                     img { class: "stat-icon stat-games-played", src: TOTAL_SVG }
                     span { class : "stat-games-played", "{profile.games_played}" }
@@ -103,7 +111,7 @@ pub fn Account() -> Element {
             }} else { rsx!{} } }
 
             div { class: "profile-container management-container",
-                div { 
+                div {
                     "e-mail :"
                     span { class: "email", "{profile.email}"}
                 }
@@ -112,7 +120,60 @@ pub fn Account() -> Element {
                     disabled: logout_button_loading(),
                     {logout_button_message()}
                 }
-                
+                { if change_username_show() { rsx! {
+                    div { class: "profile-container important-container",
+                        span { "Nouveau nom d'utilisateur" }
+                        input {
+                            class: "important-input",
+                            r#type: "username",
+                            placeholder: "Nom d'utilisateur",
+                            oninput: move |form_data| {}
+                        }
+                        span { "Mot de passe" }
+                        input {
+                            class: "important-input",
+                            r#type: "password",
+                            placeholder: "Mot de passe",
+                            oninput: move |form_data| {},
+                        }
+                        button { class: "important-button",
+                            disabled: change_username_loading(),
+                            {change_username_message()}
+                        }
+                    }
+                }} else { rsx!{
+                    button { class: "important-button",
+                        onclick: move |_| change_username_show.set(true),
+                        "Changer le nom d'utilisateur"
+                    }
+                }}}
+                { if change_password_show() { rsx! {
+                    div { class: "profile-container important-container",
+                        span { "Ancien mot de passe" }
+                        input {
+                            class: "important-input",
+                            r#type: "password",
+                            placeholder: "Mot de passe",
+                            oninput: move |form_data| {}
+                        }
+                        span { "Nouveau mot de passe" }
+                        input {
+                            class: "important-input",
+                            r#type: "password",
+                            placeholder: "Mot de passe",
+                            oninput: move |form_data| {},
+                        }
+                        button { class: "important-button",
+                            disabled: change_password_loading(),
+                            {change_password_message()}
+                        }
+                    }
+                }} else { rsx!{
+                    button { class: "important-button",
+                        onclick: move |_| change_password_show.set(true),
+                        "Changer le mot de passe"
+                    }
+                }}}
             }
         }
     }
