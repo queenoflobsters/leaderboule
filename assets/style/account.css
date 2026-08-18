@@ -1,6 +1,6 @@
 /* GLOBAL */
 .account-container {
-  width: 30rem;
+  width: 24rem;
   max-width: 100%;
   margin: 0 auto;
   display: flex;
@@ -112,7 +112,7 @@
 
 .important-input {
   text-indent: 0.5rem;
-  border: solid 0.1rem #840000;
+  border: solid 0.1rem #555;
   height: 2.5rem;
   outline: none;
   box-shadow: none;

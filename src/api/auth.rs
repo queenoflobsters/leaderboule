@@ -53,3 +53,25 @@ pub async fn logout() -> Result<(), ServerFnError> {
     auth::session::delete().await?;
     auth::cookie::clear_from_response()
 }
+
+#[server]
+pub async fn change_username(new_username: String, password: String) -> Result<Result<(), String>, ServerFnError> {
+    use crate::server::auth;
+
+    let Some(session_record) = auth::session::get_from_extension() else {
+        return Err(ServerFnError::new("User is not authenticated"));
+    };
+
+    auth::account::change_username(&session_record.user_id, &new_username, &password).await
+}
+
+#[server]
+pub async fn change_password(old_password: String, new_password: String) -> Result<Result<(), String>, ServerFnError> {
+    use crate::server::auth;
+
+    let Some(session_record) = auth::session::get_from_extension() else {
+        return Err(ServerFnError::new("User is not authenticated"));
+    };
+
+    auth::credentials::change_password(&session_record.user_id, &old_password, &new_password).await
+}

@@ -419,6 +419,71 @@ pub mod account {
         );
         Ok(id)
     }
+
+    pub async fn change_username(
+        user_id: &UserId,
+        new_username: &str,
+        password: &str,
+    ) -> Result<Result<(), String>, ServerFnError> {
+        let db = db::get().await;
+
+        let UserAuthTry::Success(_) = credentials::verify(user_id.clone(), password).await? else {
+            return Ok(Err("Mot de passe incorrect".to_string()));
+        };
+
+        let username_trimmed = new_username.trim();
+
+        if let Err(e) = check_username_validity(username_trimmed).await? {
+            return Ok(Err(e));
+        }
+
+        let updated: Option<db::UserRecord> = db
+            .query("UPDATE ONLY $user_id SET username = $username")
+            .bind(("user_id", user_id.clone()))
+            .bind(("username", username_trimmed))
+            .await
+            .map_err(|e| ServerFnError::new(e.to_string()))?
+            .take(0)
+            .map_err(|e| ServerFnError::new(e.to_string()))?;
+
+        if updated.is_none() {
+            return Err(ServerFnError::new(
+                "Utilisateur voulant changer de nom d'utilisateur introuvable",
+            ));
+        }
+
+        debug!(
+            "AUTH : user `{:?}` changed username to `{}`",
+            user_id, username_trimmed
+        );
+
+        Ok(Ok(()))
+    }
+
+    async fn check_username_validity(username: &str) -> Result<Result<(), String>, ServerFnError> {
+        let db = db::get().await;
+
+        if username.len() <= 3 {
+            return Ok(Err("Nom d'utilisateur trop court".to_string()));
+        }
+
+        if username.len() >= 32 {
+            return Ok(Err("Nom d'utilisateur trop long".to_string()));
+        }
+
+        let existing_user: Option<UserId> = db
+            .query("SELECT VALUE id FROM ONLY user WHERE username = $username")
+            .bind(("username", username))
+            .await
+            .map_err(|e| ServerFnError::new(e.to_string()))?
+            .take(0)
+            .map_err(|e| ServerFnError::new(e.to_string()))?;
+        if existing_user.is_some() {
+            return Ok(Err("Ce nom d'utilisateur est déjà utilisé".to_string()));
+        }
+
+        Ok(Ok(()))
+    }
 }
 
 pub mod credentials {
@@ -455,10 +520,9 @@ pub mod credentials {
             return Err(ServerFnError::new("Couldn't create hash from string in db"));
         };
 
-        match Argon2::default()
-            .verify_password(password.as_bytes(), &parsed_hash) {
+        match Argon2::default().verify_password(password.as_bytes(), &parsed_hash) {
             Ok(()) => Ok(UserAuthTry::Success(user_id)),
-            Err(_) => Ok(UserAuthTry::WrongPassword)
+            Err(_) => Ok(UserAuthTry::WrongPassword),
         }
     }
 
@@ -483,6 +547,42 @@ pub mod credentials {
             .content(user_cred_record)
             .await
             .map_err(|e| ServerFnError::new(e.to_string()))?;
+
+        Ok(Ok(()))
+    }
+
+    pub async fn change_password(
+        user_id: &UserId,
+        old_password: &str,
+        new_password: &str,
+    ) -> Result<Result<(), String>, ServerFnError> {
+        let db = db::get().await;
+
+        let UserAuthTry::Success(_) = credentials::verify(user_id.clone(), old_password).await?
+        else {
+            return Ok(Err("Mot de passe incorrect".to_string()));
+        };
+
+        if new_password.len() < 8 {
+            return Ok(Err("Mot de passe trop court".to_string()));
+        }
+
+        let new_password_hash = credentials::create_hash(new_password)?;
+
+        let updated: Option<UserCredRecord> = db
+            .query("UPDATE ONLY user_cred SET password_hash = $new_password_hash WHERE user_id = $user_id")
+            .bind(("new_password_hash", new_password_hash))
+            .bind(("user_id", user_id.clone().0))
+            .await
+            .map_err(|e| ServerFnError::new(e.to_string()))?
+            .take(0)
+            .map_err(|e| ServerFnError::new(e.to_string()))?;
+
+        if updated.is_none() {
+            return Err(ServerFnError::new(
+                "Cet utilisateur n'a aucun mot de passe enregistré. Absolument anormal",
+            ));
+        }
 
         Ok(Ok(()))
     }
