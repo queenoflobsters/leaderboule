@@ -17,7 +17,12 @@
   font-weight: bold;
   font-size: 2.2rem;
   margin: 0 1rem;
-  align-self: center;
+  text-align: center;
+}
+
+.member-since-title {
+  text-align: center;
+  color: #888;
 }
 
 .profile-container {

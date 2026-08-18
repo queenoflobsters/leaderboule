@@ -318,7 +318,8 @@ pub mod middleware {
 }
 
 pub mod account {
-    use super::*;
+
+use super::*;
 
     /// Returns the user id
     /// 1. Search inside the DB for user with this email
@@ -398,10 +399,13 @@ pub mod account {
             }
         };
 
+        let member_since = utils::current_time_secs();
+
         let user_record = db::UserRecord {
             id: id.clone(),
             email,
             username,
+            member_since,
             elo: elo::DEFAULT_ELO,
             games_played: 0,
             games_won: 0,

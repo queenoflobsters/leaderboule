@@ -10,6 +10,7 @@ pub mod current_user {
     pub struct UserProfile {
         pub email: String,
         pub username: String,
+        pub member_since: u64,
         pub elo: u64,
         pub best_elo: u64,
         pub games_played: u64,

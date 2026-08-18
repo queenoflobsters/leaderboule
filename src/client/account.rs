@@ -3,7 +3,7 @@ use dioxus::prelude::*;
 use crate::{
     api::{
         auth,
-        db::current_user::{self, UserProfile},
+        db::current_user::{self, UserProfile}, utils,
     },
     client::route::Route,
 };
@@ -39,7 +39,7 @@ pub fn Account() -> Element {
             document::Stylesheet { href: ACCOUNT_CSS }
 
             div { class: "account-container",
-                AccountTitle { username: &profile.username }
+                AccountTitle { username: &profile.username, member_since: profile.member_since }
                 ProfileStats { profile: profile.clone() }
 
                 { if !error_msg.is_empty() { rsx! {
@@ -53,11 +53,15 @@ pub fn Account() -> Element {
 }
 
 #[component]
-fn AccountTitle(username: String) -> Element {
+fn AccountTitle(username: String, member_since: u64) -> Element {
+    let date = utils::format_date(member_since);
     rsx! {
         img { class: "account-icon", src: ACCOUNT_SVG, }
         p { class: "username-title",
             {username}
+        }
+        p { class: "member-since-title",
+            "Membre depuis {date}"
         }
     }
 }

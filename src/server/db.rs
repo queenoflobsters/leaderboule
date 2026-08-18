@@ -25,6 +25,7 @@ pub struct UserRecord {
     pub id: UserId,
     pub email: String,
     pub username: String,
+    pub member_since: u64,
     pub elo: u64,
     pub games_played: u64,
     pub games_won: u64,
@@ -175,6 +176,7 @@ impl SurrealValue for UserProfile {
             Value::Object(mut obj) => Ok(Self {
                 email: SurrealValue::from_value(obj.remove("email").unwrap_or(Value::None))?,
                 username: SurrealValue::from_value(obj.remove("username").unwrap_or(Value::None))?,
+                member_since: SurrealValue::from_value(obj.remove("member_since").unwrap_or(Value::None))?,
                 elo: SurrealValue::from_value(obj.remove("elo").unwrap_or(Value::None))?,
                 best_elo: SurrealValue::from_value(obj.remove("best_elo").unwrap_or(Value::None))?,
                 games_played: SurrealValue::from_value(

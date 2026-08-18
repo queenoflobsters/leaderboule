@@ -8,3 +8,4 @@ pub fn current_time_secs() -> u64 {
         .map(|d| d.as_secs())
         .unwrap()
 }
+
