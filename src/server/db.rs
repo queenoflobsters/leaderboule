@@ -18,6 +18,7 @@ use crate::{
 
 pub static DB: OnceCell<Surreal<Client>> = OnceCell::const_new();
 const INIT_SQL: &'static str = include_str!("../../db_init.sql");
+const LEADERBOARD_PAGE_SIZE: u64 = 10;
 
 /// User database model
 #[derive(Serialize, Deserialize, Clone, SurrealValue)]
@@ -67,7 +68,6 @@ pub async fn get_leaderboard_cards(
     search_query: String,
     sort_method: LeaderboardSortMethod,
     page: u64,
-    page_size: u64,
 ) -> Result<Vec<LeaderboardUserCard>, ServerFnError> {
     let db = get().await;
 
@@ -89,8 +89,8 @@ pub async fn get_leaderboard_cards(
 
     let mut cards: Vec<LeaderboardUserCard> = db
         .query(query)
-        .bind(("limit", page_size))
-        .bind(("start", page * page_size))
+        .bind(("limit", LEADERBOARD_PAGE_SIZE))
+        .bind(("start", page * LEADERBOARD_PAGE_SIZE))
         .bind(("search", search_query))
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?

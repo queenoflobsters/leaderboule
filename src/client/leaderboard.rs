@@ -21,42 +21,57 @@ async fn sleep_ms(millis: u32) {
 
 #[component]
 pub fn Leaderboard() -> Element {
-    let refresh_count = use_signal(|| 0);
-    let search_query = use_signal(String::new);
-    let sort_method = use_signal(|| LeaderboardSortMethod::Elo);
-    let current_page = use_signal(|| 0);
-    let page_size = use_signal(|| 10);
+    let mut refresh_count = use_signal(|| 0);
+    let mut search_query = use_signal(String::new);
+    let mut sort_method = use_signal(|| LeaderboardSortMethod::Elo);
+    let mut current_page = use_signal(|| 0);
 
     rsx! {
-        document::Stylesheet { href: LEADERBOARD_CSS }
+            document::Stylesheet { href: LEADERBOARD_CSS }
 
-        div { class: "leaderboard-container",
+            div { class: "leaderboard-container",
 
-            Banner { search_query, sort_method, current_page, refresh_count }
+                Banner {
+                    current_sort_method: sort_method(),
+                    on_search: move |query| {
+                        current_page.set(0);
+                        search_query.set(query);
+                    },
+                    on_sort_change: move |new_sort| {
+                        current_page.set(0);
+                        sort_method.set(new_sort);
+                    },
+                    on_refresh: move |_| {
+                        refresh_count += 1;
+                    },
+                }
 
-            div { class: "cards",
-                SuspenseBoundary {
-                    fallback: |_| rsx! { p { class: "abnormal-state-message", "Patience..." } },
-                    // 2. The suspended component receives clean signals
-                    CardsList { search_query, sort_method, current_page, page_size, refresh_count,  }
+                div { class: "cards",
+                    SuspenseBoundary {
+                        fallback: |_| rsx! { p { class: "abnormal-state-message", "Patience..." } },
+                        // 2. The suspended component receives clean signals
+                        CardsList { search_query, sort_method, current_page, refresh_count,  }
+                    }
+                }
+
+                PageSwitcher {
+                    current_page: current_page(),
+                    current_page_change: move |val| current_page.set(val)
                 }
             }
-
-            PageSwitcher { current_page }
         }
-    }
 }
 
 #[component]
 fn Banner(
-    search_query: Signal<String>,
-    sort_method: Signal<LeaderboardSortMethod>,
-    current_page: Signal<u64>,
-    refresh_count: Signal<u64>,
+    current_sort_method: LeaderboardSortMethod,
+    on_search: EventHandler<String>,
+    on_sort_change: EventHandler<LeaderboardSortMethod>,
+    on_refresh: EventHandler<()>,
 ) -> Element {
     let mut show_sort_menu = use_signal(|| false);
     let mut debounce_task = use_signal(|| None::<Task>);
-    let sort_active = sort_method() != LeaderboardSortMethod::Elo;
+    let sort_active = current_sort_method != LeaderboardSortMethod::Elo;
     rsx! {
         div { class: "banner",
             input {
@@ -70,8 +85,7 @@ fn Banner(
                     }
                     let task = spawn(async move {
                         sleep_ms(300).await;
-                        current_page.set(0);
-                        search_query.set(new_val);
+                        on_search.call(new_val);
                     });
                     debounce_task.set(Some(task));
                 },
@@ -84,7 +98,7 @@ fn Banner(
             }
             button {
                 class: "reload-button",
-                onclick: move |_| refresh_count += 1,
+                onclick: move |_| on_refresh(()),
                 img { class: "banner-icon", src: RELOAD_SVG, alt: "Recharger", }
             }
         }
@@ -93,28 +107,28 @@ fn Banner(
             div { class: "sort-menu",
                 div { class: "sort-menu-item",
                     onclick: move |_| {
-                        sort_method.set(LeaderboardSortMethod::Elo);
+                        on_sort_change.call(LeaderboardSortMethod::Elo);
                         show_sort_menu.set(false);
                     },
                     "Elo"
                 }
                 div { class: "sort-menu-item",
                     onclick: move |_| {
-                        sort_method.set(LeaderboardSortMethod::GamesPlayed);
+                        on_sort_change.call(LeaderboardSortMethod::GamesPlayed);
                         show_sort_menu.set(false);
                     },
                     "Parties jouées"
                 }
                 div { class: "sort-menu-item",
                     onclick: move |_| {
-                        sort_method.set(LeaderboardSortMethod::GamesWon);
+                        on_sort_change.call(LeaderboardSortMethod::GamesWon);
                         show_sort_menu.set(false);
                     },
                     "Parties gagnées"
                 }
                 div { class: "sort-menu-item",
                     onclick: move |_| {
-                        sort_method.set(LeaderboardSortMethod::WinRatio);
+                        on_sort_change.call(LeaderboardSortMethod::WinRatio);
                         show_sort_menu.set(false);
                     },
                     "Ratio de victoires"
@@ -126,19 +140,17 @@ fn Banner(
 
 #[component]
 fn CardsList(
-    search_query: Signal<String>,
-    current_page: Signal<u64>,
-    sort_method: Signal<LeaderboardSortMethod>,
-    page_size: Signal<u64>,
-    refresh_count: Signal<u64>,
+    search_query: ReadSignal<String>,
+    current_page: ReadSignal<u64>,
+    sort_method: ReadSignal<LeaderboardSortMethod>,
+    refresh_count: ReadSignal<u64>,
 ) -> Element {
     let cards_resource = use_server_future(move || {
         let _ = refresh_count();
         let q = search_query();
         let s = sort_method();
         let p = current_page();
-        let size = page_size();
-        async move { global::get_leaderboard_cards(q, s, p, size).await }
+        async move { global::get_leaderboard_cards(q, s, p).await }
     })?;
     let do_podium = search_query().is_empty() && current_page() == 0;
     match cards_resource() {
@@ -153,8 +165,8 @@ fn CardsList(
                 }
             }
         },
-        Some(Err(err)) => rsx! {
-            p { class: "abnormal-state-message", "Oulah... Erreur :\n{err}" }
+        Some(Err(e)) => rsx! {
+            p { class: "abnormal-state-message", "Oulah... Erreur :\n{e}" }
         },
         None => rsx! {
             p { class: "abnormal-state-message", "Patience..." }
@@ -202,22 +214,22 @@ fn CardItem(use_index: Option<usize>, user: LeaderboardUserCard) -> Element {
 }
 
 #[component]
-fn PageSwitcher(current_page: Signal<u64>) -> Element {
+fn PageSwitcher(current_page: u64, current_page_change: EventHandler<u64>) -> Element {
     rsx! {
         div { class: "page-switcher-container",
             button { class: "page-switcher-button",
-                onclick: move |_| current_page.set(0),
+                onclick: move |_| current_page_change.call(0),
                 "<<<"
             }
             button { class: "page-switcher-button",
-                onclick: move |_| current_page -= 1,
+                onclick: move |_| if current_page > 0 { current_page_change.call(current_page -1 ) }, // WARN underflow problems ?
                 "<<"
             }
             div { class: "page-switcher-text",
                 "{current_page+1}"
             }
             button { class: "page-switcher-button",
-                onclick: move |_| current_page += 1,
+                onclick: move |_| if current_page < 13 { current_page_change.call(current_page + 1) },
                 ">>"
             }
         }

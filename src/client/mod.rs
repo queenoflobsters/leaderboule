@@ -4,4 +4,5 @@ pub mod login;
 pub mod logout;
 pub mod navbar;
 pub mod page_not_found;
+pub mod new_game;
 pub mod route;

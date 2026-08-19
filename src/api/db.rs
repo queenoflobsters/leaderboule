@@ -89,12 +89,11 @@ pub mod global {
         search_query: String,
         sort_method: LeaderboardSortMethod,
         page: u64,
-        page_size: u64,
     ) -> Result<Vec<LeaderboardUserCard>, ServerFnError> {
         use crate::server::{auth, db};
         if auth::session::get_from_extension().is_none() {
             return Ok(vec![]);
         }
-        db::get_leaderboard_cards(search_query, sort_method, page, page_size).await
+        db::get_leaderboard_cards(search_query, sort_method, page).await
     }
 }

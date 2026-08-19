@@ -31,6 +31,7 @@
   font-weight: bold;
 }
 
+/* SIDEBAR */
 .sidebar {
   position: fixed;
   top: 4rem; /* just under top-bar */
@@ -40,6 +41,11 @@
   z-index: 420; /* GO CONQUEST THE WEST */
   display: flex;
   flex-direction: column;
+}
+
+.route-icon {
+  width: 1.5rem;
+  height: 1.5rem;
 }
 
 

@@ -1,6 +1,6 @@
 use crate::client::{
     account::Account, leaderboard::Leaderboard, login::Login, logout::Logout, navbar::Navbar,
-    page_not_found::PageNotFound,
+    page_not_found::PageNotFound, new_game::NewGame,
 };
 use dioxus::prelude::*;
 
@@ -20,6 +20,8 @@ pub enum Route {
     Logout,
     #[route("/account")]
     Account,
+    #[route("/newgame")]
+    NewGame
     // TODO make page not found
 }
 
@@ -31,6 +33,7 @@ impl Route {
             Route::Logout => "Déconnexion",
             Route::Account => "Mon Compte",
             Route::PageNotFound { .. } => "Page non trouvée",
+            Route::NewGame => "Nouvelle Partie"
         }
     }
 

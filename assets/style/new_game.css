@@ -1,0 +1,53 @@
+.new-game-container {
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+.team-entry-container {
+  display: flex;
+  gap: 2rem;
+}
+
+@media (min-width: 48rem) {
+  .team-entry-container {
+    flex-direction: row;
+  }
+
+  /* .team-entry-container > * { */
+  /* flex: 1; */
+  /* } */
+}
+
+@media (max-width: 48rem) {
+  .team-entry-container {
+    flex-direction: column;
+  }
+}
+
+/* SCORE INPUT */
+.score-input {
+  display: flex;
+  gap: 0.7rem;
+}
+
+.score-input-buttons {
+  display: flex;
+}
+
+.score-input-icon {
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
+.score-input-field {
+  border: none;
+  outline: none;
+  box-shadow: none;
+  color: white;
+  background-color: #222;
+  border-radius: 0.3rem;
+  text-align: center;
+  width: 4rem;
+  font-size: 1.35rem;
+}

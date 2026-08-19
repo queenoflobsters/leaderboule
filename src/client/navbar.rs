@@ -5,6 +5,7 @@ const NAVBAR_CSS: Asset = asset!("assets/style/navbar.css");
 const HAMBURGER_SVG: Asset = asset!("assets/icons/hamburger.svg");
 const LEADERBOARD_SVG: Asset = asset!("assets/icons/leaderboard.svg");
 const ACCOUNT_SVG: Asset = asset!("assets/icons/account.svg");
+const PEN_SVG: Asset = asset!("assets/icons/pen.svg");
 
 #[component]
 pub fn Navbar() -> Element {
@@ -57,13 +58,16 @@ pub fn Navbar() -> Element {
                             to: Route::Leaderboard {},
                             active_class: "active-route",
                             onclick: on_link_click,
-                            img {
-                                class: "route-icon",
-                                src: LEADERBOARD_SVG,
-                                width: 24,
-                                height: 24,
-                            }
+                            img { class: "route-icon", src: LEADERBOARD_SVG, }
                             {Route::Leaderboard.title()}
+                        }
+                        Link {
+                            class: "route-entry",
+                            to: Route::NewGame {},
+                            active_class: "active-route",
+                            onclick: on_link_click,
+                            img { class: "route-icon", src: PEN_SVG, }
+                            {Route::NewGame.title()}
                         }
                     }
                     div { class: "routes-container account-route",
@@ -72,12 +76,7 @@ pub fn Navbar() -> Element {
                             to: Route::Account {},
                             active_class: "active-route",
                             onclick: on_link_click,
-                            img {
-                                class: "route-icon",
-                                src: ACCOUNT_SVG,
-                                width: 24,
-                                height: 24,
-                            }
+                            img { class: "route-icon", src: ACCOUNT_SVG, }
                             {username}
                         }
                     }
