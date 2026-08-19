@@ -41,6 +41,8 @@ pub fn Leaderboard() -> Element {
                     CardsList { search_query, sort_method, current_page, page_size, refresh_count,  }
                 }
             }
+
+            PageSwitcher { current_page }
         }
     }
 }
@@ -194,6 +196,29 @@ fn CardItem(use_index: Option<usize>, user: LeaderboardUserCard) -> Element {
             div { class : "player-rank",
                 img { class: "stat-icon-card", src: HASH_SVG}
                 "{user.rank.unwrap_or(0)}"
+            }
+        }
+    }
+}
+
+#[component]
+fn PageSwitcher(current_page: Signal<u64>) -> Element {
+    rsx! {
+        div { class: "page-switcher-container",
+            button { class: "page-switcher-button",
+                onclick: move |_| current_page.set(0),
+                "<<<"
+            }
+            button { class: "page-switcher-button",
+                onclick: move |_| current_page -= 1,
+                "<<"
+            }
+            div { class: "page-switcher-text",
+                "{current_page+1}"
+            }
+            button { class: "page-switcher-button",
+                onclick: move |_| current_page += 1,
+                ">>"
             }
         }
     }
