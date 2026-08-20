@@ -89,9 +89,6 @@
   filter: drop-shadow(0 0 0.5em color-mix(in srgb, currentColor 50%, transparent));
 }
 
-.error-msg {
-  color: #fc5356;
-}
 
 /* MANAGEMENT */
 .email {
@@ -104,9 +101,9 @@
 }
 
 
- .important-container {
-   gap: 0.7rem;
- }
+.important-container {
+ gap: 0.7rem;
+}
 
 .important-button {
   color: white;

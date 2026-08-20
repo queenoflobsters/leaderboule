@@ -77,6 +77,12 @@ pub mod global {
     }
 
     #[derive(Serialize, Deserialize, PartialEq, Clone)]
+    pub struct UserSearchItem {
+        pub username: String,
+        pub elo: u64
+    }
+
+    #[derive(Serialize, Deserialize, PartialEq, Clone)]
     pub enum LeaderboardSortMethod {
         Elo,
         GamesPlayed,
@@ -92,8 +98,27 @@ pub mod global {
     ) -> Result<Vec<LeaderboardUserCard>, ServerFnError> {
         use crate::server::{auth, db};
         if auth::session::get_from_extension().is_none() {
-            return Ok(vec![]);
+            return Err(ServerFnError::new("User is not authenticated".to_string()));
         }
         db::get_leaderboard_cards(search_query, sort_method, page).await
+    }
+
+    #[server]
+    pub async fn search_user(search_query: String) -> Result<Vec<UserSearchItem>, ServerFnError> {
+        use crate::server::{auth, db};
+        let Some(session) = auth::session::get_from_extension() else {
+            return Err(ServerFnError::new("User is not authenticated".to_string()));
+        };
+
+        return Ok(vec![
+            UserSearchItem {
+                username: "Marie".to_string(),
+                elo: 3630,
+            },
+            UserSearchItem {
+                username: "Sophie".to_string(),
+                elo: 196
+            }
+        ])
     }
 }

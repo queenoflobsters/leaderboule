@@ -3,7 +3,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Ubuntu:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400;1,500;1,700&display=swap');
 
 body {
-    background-color: #101010;
+    background-color: #111;
     color: #ffffff;
     font-family: Ubuntu, 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     margin: 20px;
@@ -22,11 +22,23 @@ button {
     color: #bbb;
 }
 
+input {  
+  text-indent: 0.5rem;
+  border: none;
+  outline: none;
+  box-shadow: none;
+  color: white;
+  background-color: #222;
+  border-radius: 0.3rem;
+}
+
 .abnormal-state-message {
   display: flex;
   justify-content: center;
-  margin-top: 5rem;
   text-align: center;
   font-size: 1.4rem;
 }
 
+.error-message {
+  color: #fc5356;
+}

@@ -1,3 +1,5 @@
+use dioxus::document;
+
 pub fn format_date(secs: u64) -> String {
     // 1. Time of day
     // let seconds_in_day = secs % 86400;
@@ -22,4 +24,13 @@ pub fn format_date(secs: u64) -> String {
 
     // format!("{day:02}/{month:02}/{year} à {hours:02}:{minutes:02}")
     format!("{day:02}/{month:02}/{year}")
+}
+
+pub async fn sleep_ms(millis: u32) {
+    // HORRENDOUS call to JS for wait helper
+    // TODO fix later
+    let _ = document::eval(&format!(
+        "await new Promise(resolve => setTimeout(resolve, {millis}));"
+    ))
+    .await;
 }

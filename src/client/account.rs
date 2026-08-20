@@ -43,10 +43,10 @@ pub fn Account() -> Element {
                 ProfileStats { profile: profile.clone() }
 
                 { if !error_msg.is_empty() { rsx! {
-                    p { class: "error-msg", {error_msg()}}
+                    p { class: "error-message", {error_msg()}}
                 }} else { rsx!{} } }
 
-                Management { error_msg, email: &profile.username }
+                Management { error_msg, email: &profile.email }
 
         }
     }

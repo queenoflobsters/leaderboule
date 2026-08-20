@@ -1,4 +1,7 @@
-use crate::api::db::global::{self, LeaderboardSortMethod, LeaderboardUserCard};
+use crate::api::{
+    db::global::{self, LeaderboardSortMethod, LeaderboardUserCard},
+    utils,
+};
 use dioxus::{core::Task, prelude::*};
 
 const LEADERBOARD_CSS: Asset = asset!("assets/style/leaderboard.css");
@@ -10,15 +13,6 @@ const TOTAL_SVG: Asset = asset!("assets/icons/total.svg");
 const PERCENT_SVG: Asset = asset!("assets/icons/percent.svg");
 const HASH_SVG: Asset = asset!("assets/icons/hash.svg");
 
-async fn sleep_ms(millis: u32) {
-    // HORRENDOUS call to JS for wait helper
-    // TODO fix later
-    let _ = document::eval(&format!(
-        "await new Promise(resolve => setTimeout(resolve, {millis}));"
-    ))
-    .await;
-}
-
 #[component]
 pub fn Leaderboard() -> Element {
     let mut refresh_count = use_signal(|| 0);
@@ -27,39 +21,39 @@ pub fn Leaderboard() -> Element {
     let mut current_page = use_signal(|| 0);
 
     rsx! {
-            document::Stylesheet { href: LEADERBOARD_CSS }
+        document::Stylesheet { href: LEADERBOARD_CSS }
 
-            div { class: "leaderboard-container",
+        div { class: "leaderboard-container",
 
-                Banner {
-                    current_sort_method: sort_method(),
-                    on_search: move |query| {
-                        current_page.set(0);
-                        search_query.set(query);
-                    },
-                    on_sort_change: move |new_sort| {
-                        current_page.set(0);
-                        sort_method.set(new_sort);
-                    },
-                    on_refresh: move |_| {
-                        refresh_count += 1;
-                    },
-                }
+            Banner {
+                current_sort_method: sort_method(),
+                on_search: move |query| {
+                    current_page.set(0);
+                    search_query.set(query);
+                },
+                on_sort_change: move |new_sort| {
+                    current_page.set(0);
+                    sort_method.set(new_sort);
+                },
+                on_refresh: move |_| {
+                    refresh_count += 1;
+                },
+            }
 
-                div { class: "cards",
-                    SuspenseBoundary {
-                        fallback: |_| rsx! { p { class: "abnormal-state-message", "Patience..." } },
-                        // 2. The suspended component receives clean signals
-                        CardsList { search_query, sort_method, current_page, refresh_count,  }
-                    }
-                }
-
-                PageSwitcher {
-                    current_page: current_page(),
-                    current_page_change: move |val| current_page.set(val)
+            div { class: "cards",
+                SuspenseBoundary {
+                    fallback: |_| rsx! { p { class: "abnormal-state-message", "Patience..." } },
+                    // The suspended component receives clean signals
+                    CardsList { search_query, sort_method, current_page, refresh_count,  }
                 }
             }
+
+            PageSwitcher {
+                current_page: current_page(),
+                current_page_change: move |val| current_page.set(val)
+            }
         }
+    }
 }
 
 #[component]
@@ -72,23 +66,24 @@ fn Banner(
     let mut show_sort_menu = use_signal(|| false);
     let mut debounce_task = use_signal(|| None::<Task>);
     let sort_active = current_sort_method != LeaderboardSortMethod::Elo;
+    let on_input = move |evt: Event<FormData>| {
+        let new_val = evt.value();
+        if let Some(task) = debounce_task.take() {
+            task.cancel();
+        }
+        let task = spawn(async move {
+            utils::sleep_ms(300).await;
+            on_search.call(new_val);
+        });
+        debounce_task.set(Some(task));
+    };
     rsx! {
         div { class: "banner",
             input {
                 class: "search-input",
                 r#type: "search",
                 placeholder: "Rechercher...",
-                oninput: move |form_data| {
-                    let new_val = form_data.value();
-                    if let Some(task) = debounce_task.take() {
-                        task.cancel();
-                    }
-                    let task = spawn(async move {
-                        sleep_ms(300).await;
-                        on_search.call(new_val);
-                    });
-                    debounce_task.set(Some(task));
-                },
+                oninput: on_input,
             }
 
             button {
@@ -158,12 +153,10 @@ fn CardsList(
             p { class: "abnormal-state-message", "Aucun joueur trouvé"}
         },
         Some(Ok(user_perfs)) => rsx! {
-            for (i, user) in user_perfs.iter().enumerate() {
-                {
-                    let use_index = if do_podium { Some(i) } else { None };
-                    rsx! {CardItem { key: "{user.username}", use_index, user: user.clone() }}
-                }
-            }
+            for (i, user) in user_perfs.iter().enumerate() {{
+                let use_index = if do_podium { Some(i) } else { None };
+                rsx! {CardItem { key: "{user.username}", use_index, user: user.clone() }}
+            }}
         },
         Some(Err(e)) => rsx! {
             p { class: "abnormal-state-message", "Oulah... Erreur :\n{e}" }
