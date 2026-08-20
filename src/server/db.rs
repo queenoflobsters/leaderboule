@@ -11,7 +11,7 @@ use tokio::sync::OnceCell;
 use crate::{
     api::db::{
         current_user::UserProfile,
-        global::{LeaderboardSortMethod, LeaderboardUserCard},
+        global::{LeaderboardSortMethod, LeaderboardUserCard, UserSearchItem},
     },
     server::auth::UserId,
 };
@@ -105,6 +105,20 @@ pub async fn get_leaderboard_cards(
     Ok(cards)
 }
 
+pub async fn search_user(search_query: &str) -> Result<Vec<UserSearchItem>, ServerFnError> {
+    let db = get().await;
+
+    let items: Vec<UserSearchItem> = db
+        .query("SELECT * FROM user WHERE username @1@ $search LIMIT 10")
+        .bind(("search", search_query))
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))?
+        .take(0)
+        .map_err(|e| ServerFnError::new(e.to_string()))?;
+
+    Ok(items)
+}
+
 pub async fn get_elo_rank(elo: u64) -> Result<u64, ServerFnError> {
     let db = get().await;
     let higher_count: Option<u64> = db
@@ -176,7 +190,9 @@ impl SurrealValue for UserProfile {
             Value::Object(mut obj) => Ok(Self {
                 email: SurrealValue::from_value(obj.remove("email").unwrap_or(Value::None))?,
                 username: SurrealValue::from_value(obj.remove("username").unwrap_or(Value::None))?,
-                member_since: SurrealValue::from_value(obj.remove("member_since").unwrap_or(Value::None))?,
+                member_since: SurrealValue::from_value(
+                    obj.remove("member_since").unwrap_or(Value::None),
+                )?,
                 elo: SurrealValue::from_value(obj.remove("elo").unwrap_or(Value::None))?,
                 best_elo: SurrealValue::from_value(obj.remove("best_elo").unwrap_or(Value::None))?,
                 games_played: SurrealValue::from_value(
@@ -192,6 +208,30 @@ impl SurrealValue for UserProfile {
                     obj.remove("win_ratio").unwrap_or(Value::None),
                 )?,
                 rank: None,
+            }),
+            other => <()>::from_value(other).map(|_| unreachable!()),
+        }
+    }
+}
+impl SurrealValue for UserSearchItem {
+    fn kind_of() -> surrealdb::types::Kind {
+        surrealdb::types::Kind::Any
+    }
+
+    fn into_value(self) -> surrealdb::types::Value {
+        panic!("You should never write a UserSearchItem into the database");
+    }
+
+    fn from_value(value: surrealdb::types::Value) -> Result<Self, surrealdb::Error>
+    where
+        Self: Sized,
+    {
+        use surrealdb::types::{SurrealValue, Value};
+
+        match value {
+            Value::Object(mut obj) => Ok(Self {
+                username: SurrealValue::from_value(obj.remove("username").unwrap_or(Value::None))?,
+                elo: SurrealValue::from_value(obj.remove("elo").unwrap_or(Value::None))?,
             }),
             other => <()>::from_value(other).map(|_| unreachable!()),
         }

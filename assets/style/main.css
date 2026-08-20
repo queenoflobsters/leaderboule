@@ -36,9 +36,11 @@ input {
   display: flex;
   justify-content: center;
   text-align: center;
-  font-size: 1.4rem;
+  font-size: 1.1rem;
 }
 
 .error-message {
+  align-self: center;
+  text-align: center;
   color: #fc5356;
 }

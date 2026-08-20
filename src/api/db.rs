@@ -106,19 +106,13 @@ pub mod global {
     #[server]
     pub async fn search_user(search_query: String) -> Result<Vec<UserSearchItem>, ServerFnError> {
         use crate::server::{auth, db};
-        let Some(session) = auth::session::get_from_extension() else {
+        // let Some(session) = auth::session::get_from_extension() else {
+        //     return Err(ServerFnError::new("User is not authenticated".to_string()));
+        // };
+        if auth::session::get_from_extension().is_none() {
             return Err(ServerFnError::new("User is not authenticated".to_string()));
-        };
+        }
 
-        return Ok(vec![
-            UserSearchItem {
-                username: "Marie".to_string(),
-                elo: 3630,
-            },
-            UserSearchItem {
-                username: "Sophie".to_string(),
-                elo: 196
-            }
-        ])
+        db::search_user(&search_query).await
     }
 }
