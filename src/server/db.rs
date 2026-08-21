@@ -23,6 +23,7 @@ use crate::{
 pub static DB: OnceCell<Surreal<Client>> = OnceCell::const_new();
 const INIT_SQL: &'static str = include_str!("../../db_init.sql");
 const USER_PAGE_SIZE: u64 = 8;
+const GAME_REGISTRY_COOLDOWN: u64 = 15 * 60;
 
 /// User database model
 #[derive(Serialize, Deserialize, Clone, SurrealValue)]
@@ -55,12 +56,12 @@ impl GameId {
 // Game database model
 #[derive(Serialize, Deserialize, Clone, SurrealValue)]
 pub struct GameRecord {
-    id: GameId,
-    won_score: u64,
-    lost_score: u64,
-    players: Vec<UserGameLog>,
-    recorded_by: UserId,
-    played_at: u64,
+    pub id: GameId,
+    pub won_score: u64,
+    pub lost_score: u64,
+    pub players: Vec<UserGameLog>,
+    pub recorded_by: UserId,
+    pub played_at: u64,
 }
 
 /// Initialize SurrealDB connection singleton
@@ -171,6 +172,16 @@ pub async fn register_game(
 ) -> Result<Result<(), String>, ServerFnError> {
     let db = get().await;
 
+    if let Some(game_record) = get_recent_game(&user_id).await? {
+        let remaining_secs =
+            game_record.played_at + GAME_REGISTRY_COOLDOWN - utils::current_time_secs();
+        return Ok(Err(format!(
+            "Tu pourras entrer une nouvelle partie dans {:.2}:{}",
+            remaining_secs / 60,
+            remaining_secs % 60
+        )));
+    }
+
     if let Err(e) = elo::verify_game(&sent_game) {
         return Ok(Err(e));
     }
@@ -208,8 +219,7 @@ pub async fn register_game(
     };
 
     db.query(
-        "
-            BEGIN TRANSACTION;
+        "BEGIN TRANSACTION;
             CREATE $game_id CONTENT $game_record;
             FOR $u IN $updates {
                 UPDATE ONLY $u.id SET
@@ -217,8 +227,7 @@ pub async fn register_game(
                     games_played += 1,
                     games_won += IF $u.won THEN 1 ELSE 0 END;
             };
-            COMMIT TRANSACTION;
-        ",
+        COMMIT TRANSACTION;",
     )
     .bind(("updates", updates))
     .bind(("game_id", game_record.id.0.clone()))
@@ -227,6 +236,25 @@ pub async fn register_game(
     .map_err(|e| ServerFnError::new(e.to_string()))?;
 
     Ok(Ok(()))
+}
+
+async fn get_recent_game(user_id: &UserId) -> Result<Option<GameRecord>, ServerFnError> {
+    let db = get().await;
+
+    let cutoff_time = utils::current_time_secs() - GAME_REGISTRY_COOLDOWN;
+
+    let recent_game: Option<GameRecord> = db
+        .query(
+            "SELECT * FROM ONLY game WHERE players.*.id CONTAINS $user_id AND played_at >= $cutoff_time ORDER BY played_at DESC LIMIT 1;",
+        )
+        .bind(("user_id", user_id.clone()))
+        .bind(("cutoff_time", cutoff_time))
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))?
+        .take(0)
+        .map_err(|e| ServerFnError::new(e.to_string()))?;
+
+    Ok(recent_game)
 }
 
 async fn map_usernames(
