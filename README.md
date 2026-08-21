@@ -12,5 +12,16 @@ HELLOASSO_CLIENT_ID="..."
 HELLOASSO_CLIENT_SECRET="..."
 ```
 
-# wc command
+### TODO
+- [ ] Pretty login
+- [ ] Game History
+- [ ] Achievements
+- [ ] Changer le logo
+- [ ] Page not found
+- [ ] CICD Pipeline
+- [ ] Working Elo system
+- [ ] README
+- [ ] Doc
+
+### wc command
 `wc -l src/client/* src/api/* src/server/* assets/style/* src/main.rs db_init.sql`
