@@ -32,7 +32,7 @@ use surrealdb::types::{RecordId, RecordIdKey, SurrealValue, Uuid};
 #[serde(transparent)]
 pub struct SessionToken(pub RecordId);
 
-#[derive(Debug, Serialize, Deserialize, Clone, SurrealValue)]
+#[derive(Debug, Serialize, Deserialize, Clone, SurrealValue, PartialEq)]
 #[serde(transparent)]
 pub struct UserId(pub RecordId);
 

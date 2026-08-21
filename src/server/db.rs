@@ -3,17 +3,21 @@ use serde::{Deserialize, Serialize};
 use surrealdb::{
     engine::remote::ws::{Client, Ws},
     opt::auth::Root,
-    types::SurrealValue,
+    types::{RecordId, SurrealValue, Uuid},
     Surreal,
 };
 use tokio::sync::OnceCell;
 
 use crate::{
     api::db::{
-        current_user::UserProfile,
+        current_user::{GameSearchItem, UserProfile},
         global::{GameSendItem, LeaderboardSortMethod, LeaderboardUserCard, UserSearchItem},
     },
-    server::{auth::UserId, elo},
+    server::{
+        auth::UserId,
+        elo::{self, UserGameLog},
+        utils,
+    },
 };
 
 pub static DB: OnceCell<Surreal<Client>> = OnceCell::const_new();
@@ -30,6 +34,33 @@ pub struct UserRecord {
     pub elo: u64,
     pub games_played: u64,
     pub games_won: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone, SurrealValue)]
+pub struct UserWithElo {
+    pub id: UserId,
+    pub elo: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash, SurrealValue)]
+#[serde(transparent)]
+pub struct GameId(pub RecordId);
+
+impl GameId {
+    pub fn new_v7() -> Self {
+        Self(RecordId::new("game", Uuid::new_v7()))
+    }
+}
+
+// Game database model
+#[derive(Serialize, Deserialize, Clone, SurrealValue)]
+pub struct GameRecord {
+    id: GameId,
+    won_score: u64,
+    lost_score: u64,
+    players: Vec<UserGameLog>,
+    recorded_by: UserId,
+    played_at: u64,
 }
 
 /// Initialize SurrealDB connection singleton
@@ -134,12 +165,103 @@ pub async fn get_elo_rank(elo: u64) -> Result<u64, ServerFnError> {
     ))
 }
 
-pub async fn register_game(user_id: &UserId, sent_game: &GameSendItem) -> Result<Result<(), String>, ServerFnError> {
+pub async fn register_game(
+    user_id: UserId,
+    sent_game: GameSendItem,
+) -> Result<Result<(), String>, ServerFnError> {
     let db = get().await;
+
     if let Err(e) = elo::verify_game(&sent_game) {
-        return Ok(Err(e))
+        return Ok(Err(e));
     }
-    
+
+    let [left_team_users, right_team_users] =
+        match map_usernames(sent_game.left_team, sent_game.right_team).await? {
+            Ok(vs) => vs,
+            Err(e) => return Ok(Err(e)),
+        };
+
+    if left_team_users.iter().all(|u| u.id != user_id)
+        && right_team_users.iter().all(|u| u.id != user_id)
+    {
+        return Ok(Err("L'utilisateur entrant la partie doit jouer".to_string()));
+    }
+
+    let updates = elo::compute_changes(
+        sent_game.left_score,
+        sent_game.right_score,
+        left_team_users,
+        right_team_users,
+    );
+
+    let game_id = GameId::new_v7();
+    let won_score = std::cmp::max(sent_game.left_score, sent_game.right_score);
+    let lost_score = std::cmp::min(sent_game.left_score, sent_game.right_score);
+    let played_at = utils::current_time_secs();
+    let game_record = GameRecord {
+        id: game_id,
+        lost_score,
+        won_score,
+        players: updates.clone(),
+        recorded_by: user_id,
+        played_at,
+    };
+
+    db.query(
+        "
+            BEGIN TRANSACTION;
+            CREATE $game_id CONTENT $game_record;
+            FOR $u IN $updates {
+                UPDATE ONLY $u.id SET
+                    elo = math::max([0, elo + $u.elo_change]),
+                    games_played += 1,
+                    games_won += IF $u.won THEN 1 ELSE 0 END;
+            };
+            COMMIT TRANSACTION;
+        ",
+    )
+    .bind(("updates", updates))
+    .bind(("game_id", game_record.id.0.clone()))
+    .bind(("game_record", game_record))
+    .await
+    .map_err(|e| ServerFnError::new(e.to_string()))?;
+
+    Ok(Ok(()))
+}
+
+async fn map_usernames(
+    left_team: Vec<String>,
+    right_team: Vec<String>,
+) -> Result<Result<[Vec<UserWithElo>; 2], String>, ServerFnError> {
+    let db = get().await;
+
+    let left_team_len = left_team.len();
+    let right_team_len = right_team.len();
+
+    let mut response = db
+        .query("SELECT id, elo FROM user WHERE username IN $left_team; SELECT id, elo FROM user WHERE username IN $right_team;")
+        .bind(("left_team", left_team))
+        .bind(("right_team", right_team))
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))?;
+
+    let left_team_users: Vec<UserWithElo> = response
+        .take(0)
+        .map_err(|e| ServerFnError::new(e.to_string()))?;
+    let right_team_users: Vec<UserWithElo> = response
+        .take(1)
+        .map_err(|e| ServerFnError::new(e.to_string()))?;
+
+    if left_team_users.len() != left_team_len || right_team_users.len() != right_team_len {
+        return Ok(Err(
+            "Un ou plusieurs joueurs n'existent pas dans la base de données".to_string(),
+        ));
+    }
+
+    Ok(Ok([left_team_users, right_team_users]))
+}
+
+pub async fn get_game_history(user_id: UserId) -> Result<Vec<GameSearchItem>, ServerFnError> {
     todo!()
 }
 

@@ -133,7 +133,6 @@ fn ScoreInput() -> Element {
 
 #[component]
 fn PlayerSelector() -> Element {
-    let mut team_members = use_context::<Signal<TeamMembers>>();
     let mut search_query = use_signal(String::new);
     let mut debounce_task = use_signal(|| None::<Task>);
     let on_input = move |evt: Event<FormData>| {

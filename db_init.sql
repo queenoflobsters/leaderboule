@@ -66,8 +66,39 @@ DEFINE INDEX IF NOT EXISTS idx_user_email_unique ON TABLE user FIELDS email UNIQ
 DEFINE INDEX IF NOT EXISTS idx_user_search ON TABLE user FIELDS username FULLTEXT ANALYZER user_search_analyzer;
 
 
+-- II. define the game table
+DEFINE TABLE IF NOT EXISTS game SCHEMALESS;
 
--- II. define the session table
+DEFINE FIELD IF NOT EXISTS won_score ON TABLE game TYPE int
+    TYPE int
+    ASSERT $value >= 0 AND $value <= 13 AND $value > $this.lost_score;
+
+DEFINE FIELD IF NOT EXISTS lost_score ON TABLE game TYPE int
+    TYPE int
+    ASSERT $value >= 0 AND $value <= 13 AND $value < $this.won_score;
+
+DEFINE FIELD IF NOT EXISTS players ON TABLE game
+    TYPE array
+    ASSERT array::len($value) >= 2;
+
+DEFINE FIELD IF NOT EXISTS recorded_by ON TABLE game 
+    TYPE record<user>
+    ASSERT $value != NONE AND record::exists($value);
+
+DEFINE FIELD IF NOT EXISTS played_at ON TABLE game
+    TYPE int;
+
+-- AUTO-COMPUTED : games won
+DEFINE FIELD IF NOT EXISTS won_players ON TABLE game
+    COMPUTED $this.players[WHERE won = true];
+-- AUTO-COMPUTED : games lost
+DEFINE FIELD IF NOT EXISTS lost_players ON TABLE game
+    COMPUTED $this.players[WHERE won = false];
+
+DEFINE INDEX IF NOT EXISTS idx_game_played_at ON TABLE game FIELDS played_at;
+DEFINE INDEX IF NOT EXISTS idx_game_players ON TABLE game FIELDS players.*.id;
+
+-- III. define the session table
 DEFINE TABLE IF NOT EXISTS session SCHEMALESS;
 
 -- user_id field constraints
@@ -85,8 +116,7 @@ DEFINE INDEX IF NOT EXISTS idx_session_user ON TABLE session FIELDS user_id;
 DEFINE INDEX IF NOT EXISTS idx_session_expires ON TABLE session FIELDS expries_at;
 
 
-
--- III. define the user_cred table
+-- IV. define the user_cred table
 DEFINE TABLE IF NOT EXISTS user_cred SCHEMAFULL;
 
 -- link to the user table

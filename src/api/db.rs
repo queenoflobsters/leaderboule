@@ -3,7 +3,9 @@ use serde::{Deserialize, Serialize};
 
 pub mod current_user {
 
+
     use super::*;
+    use crate::api::db::global::UserSearchItem;
 
     /// User database model
     #[derive(Serialize, Deserialize, Clone, Default, PartialEq)]
@@ -58,6 +60,26 @@ pub mod current_user {
         user_profile.rank = Some(db::get_elo_rank(user_profile.elo).await?);
         Ok(user_profile)
     }
+
+    #[derive(Serialize, Deserialize, Clone)]
+    pub struct GameSearchItem {
+        elo_change: i64,
+        won_score: u64,
+        lost_score: u64,
+        won_players: Vec<UserSearchItem>,
+        lost_players: Vec<UserSearchItem>,
+        played_at: u64,
+    }
+
+    #[server]
+    pub async fn get_game_history() -> Result<Vec<GameSearchItem>, ServerFnError> {
+        use crate::server::{auth, db};
+        let Some(session_record) = auth::session::get_from_extension() else {
+            return Err(ServerFnError::new("User is not authenticated"));
+        };
+
+        db::get_game_history(session_record.user_id).await
+    }
 }
 
 pub mod global {
@@ -100,7 +122,7 @@ pub mod global {
     #[derive(Serialize, Deserialize, PartialEq, Clone)]
     pub struct UserSearchItem {
         pub username: String,
-        pub elo: u64,
+        pub elo: i64,
     }
 
     #[server]
@@ -152,6 +174,6 @@ pub mod global {
             return Err(ServerFnError::new("User is not authenticated"));
         };
 
-        db::register_game(&session_record.user_id, &game).await
+        db::register_game(session_record.user_id, game).await
     }
 }
