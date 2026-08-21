@@ -1,9 +1,7 @@
-use std::fs::read_to_string;
-
 use dioxus::{core::Task, prelude::*};
 
 use crate::api::{
-    db::global::{self, UserSearchItem},
+    db::{self, global::{self, GameSendItem, UserSearchItem}},
     utils,
 };
 
@@ -21,12 +19,41 @@ struct TeamMembers(Vec<UserSearchItem>);
 
 #[component]
 pub fn NewGame() -> Element {
-    let error_msg = use_context_provider(|| Signal::new(ErrorMsg::default()));
+    let mut error_msg = use_context_provider(|| Signal::new(ErrorMsg::default()));
 
-    let mut left_score = use_signal(|| TeamScore(13));
-    let mut right_score = use_signal(|| TeamScore(0));
+    let left_score = use_signal(|| TeamScore(13));
+    let right_score = use_signal(|| TeamScore(0));
     let left_team_members = use_signal(TeamMembers::default);
     let right_team_members = use_signal(TeamMembers::default);
+    let mut submit_button_msg = use_signal(|| "Valider".to_string());
+    let mut submit_loading = use_signal(|| false);
+    let submit_game = move |_| {
+        submit_loading.set(true);
+        submit_button_msg.set("Chargement...".to_string());
+        let game = GameSendItem::construct(
+            left_score.read().0,
+            right_score.read().0,
+            &*left_team_members.read().0,
+            &*right_team_members.read().0,
+        );
+        spawn(async move {
+            match db::global::register_game(game).await {
+                Ok(Ok(())) => {
+                    submit_button_msg.set("Partie enregistrée !".to_string())
+                    // TODO navigate to game history
+                }
+                Ok(Err(e)) => {
+                    submit_button_msg.set("Valider".to_string());
+                    error_msg.set(ErrorMsg(e));
+                }
+                Err(e) => {
+                    submit_button_msg.set("Valider".to_string());
+                    error_msg.set(ErrorMsg(e.to_string()));
+                }
+            }
+            submit_loading.set(false)
+        });
+    };
 
     rsx! {
         document::Stylesheet { href : NEW_GAME_CSS }
@@ -46,7 +73,9 @@ pub fn NewGame() -> Element {
                 p { class: "error-message", {error_msg().0} }
             }} else { rsx! {} }}
             button { class: "validate-button",
-                "Valider"
+                disabled: submit_loading(),
+                onclick: submit_game,
+                "{submit_button_msg}"
             }
         }
     }
@@ -242,3 +271,4 @@ fn SelectedPlayersBox() -> Element {
         }
     }
 }
+

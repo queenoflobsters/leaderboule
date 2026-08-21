@@ -77,12 +77,6 @@ pub mod global {
     }
 
     #[derive(Serialize, Deserialize, PartialEq, Clone)]
-    pub struct UserSearchItem {
-        pub username: String,
-        pub elo: u64
-    }
-
-    #[derive(Serialize, Deserialize, PartialEq, Clone)]
     pub enum LeaderboardSortMethod {
         Elo,
         GamesPlayed,
@@ -103,16 +97,61 @@ pub mod global {
         db::get_leaderboard_cards(search_query, sort_method, page).await
     }
 
+    #[derive(Serialize, Deserialize, PartialEq, Clone)]
+    pub struct UserSearchItem {
+        pub username: String,
+        pub elo: u64,
+    }
+
     #[server]
     pub async fn search_user(search_query: String) -> Result<Vec<UserSearchItem>, ServerFnError> {
         use crate::server::{auth, db};
-        // let Some(session) = auth::session::get_from_extension() else {
-        //     return Err(ServerFnError::new("User is not authenticated".to_string()));
-        // };
         if auth::session::get_from_extension().is_none() {
             return Err(ServerFnError::new("User is not authenticated".to_string()));
         }
 
         db::search_user(&search_query).await
+    }
+
+    #[derive(Serialize, Deserialize, PartialEq, Clone)]
+    pub struct GameSendItem {
+        pub left_score: u64,
+        pub right_score: u64,
+        pub left_team: Vec<String>,
+        pub right_team: Vec<String>,
+    }
+
+    impl GameSendItem {
+        pub fn construct(
+            left_score: u64,
+            right_score: u64,
+            left_team_members: &[UserSearchItem],
+            right_team_members: &[UserSearchItem],
+        ) -> Self {
+            let left_team: Vec<String> = left_team_members
+                .iter()
+                .map(|item| item.username.clone())
+                .collect();
+            let right_team: Vec<String> = right_team_members
+                .iter()
+                .map(|item| item.username.clone())
+                .collect();
+            Self {
+                left_score,
+                right_score,
+                left_team,
+                right_team,
+            }
+        }
+    }
+
+    #[server]
+    pub async fn register_game(game: GameSendItem) -> Result<Result<(), String>, ServerFnError> {
+        use crate::server::{auth, db};
+        let Some(session_record) = auth::session::get_from_extension() else {
+            return Err(ServerFnError::new("User is not authenticated"));
+        };
+
+        db::register_game(&session_record.user_id, &game).await
     }
 }

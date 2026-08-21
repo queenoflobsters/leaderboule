@@ -11,14 +11,14 @@ use tokio::sync::OnceCell;
 use crate::{
     api::db::{
         current_user::UserProfile,
-        global::{LeaderboardSortMethod, LeaderboardUserCard, UserSearchItem},
+        global::{GameSendItem, LeaderboardSortMethod, LeaderboardUserCard, UserSearchItem},
     },
-    server::auth::UserId,
+    server::{auth::UserId, elo},
 };
 
 pub static DB: OnceCell<Surreal<Client>> = OnceCell::const_new();
 const INIT_SQL: &'static str = include_str!("../../db_init.sql");
-const LEADERBOARD_PAGE_SIZE: u64 = 10;
+const USER_PAGE_SIZE: u64 = 8;
 
 /// User database model
 #[derive(Serialize, Deserialize, Clone, SurrealValue)]
@@ -89,8 +89,8 @@ pub async fn get_leaderboard_cards(
 
     let mut cards: Vec<LeaderboardUserCard> = db
         .query(query)
-        .bind(("limit", LEADERBOARD_PAGE_SIZE))
-        .bind(("start", page * LEADERBOARD_PAGE_SIZE))
+        .bind(("limit", USER_PAGE_SIZE))
+        .bind(("start", page * USER_PAGE_SIZE))
         .bind(("search", search_query))
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?
@@ -109,8 +109,9 @@ pub async fn search_user(search_query: &str) -> Result<Vec<UserSearchItem>, Serv
     let db = get().await;
 
     let items: Vec<UserSearchItem> = db
-        .query("SELECT * FROM user WHERE username @1@ $search LIMIT 10")
+        .query("SELECT * FROM user WHERE username @1@ $search LIMIT $limit")
         .bind(("search", search_query))
+        .bind(("limit", USER_PAGE_SIZE))
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?
         .take(0)
@@ -131,6 +132,15 @@ pub async fn get_elo_rank(elo: u64) -> Result<u64, ServerFnError> {
     higher_count.ok_or(ServerFnError::new(
         "Couldn't get the user's rank".to_string(),
     ))
+}
+
+pub async fn register_game(user_id: &UserId, sent_game: &GameSendItem) -> Result<Result<(), String>, ServerFnError> {
+    let db = get().await;
+    if let Err(e) = elo::verify_game(&sent_game) {
+        return Ok(Err(e))
+    }
+    
+    todo!()
 }
 
 impl SurrealValue for LeaderboardUserCard {

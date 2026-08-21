@@ -15,7 +15,6 @@
 
 .hamburger {
   border: none;
-  cursor: pointer;
   display: flex;
   align-items: center;
   padding: 0.5rem;

@@ -238,19 +238,17 @@ fn PasswordChanger(error_msg: Signal<String>) -> Element {
                         message.set("Mot de passe changé avec succès".to_string());
                         password_new.set(String::new());
                         password_old.set(String::new());
-                        loading.set(false);
                     }
                 }
                 Ok(Err(e)) => {
                     message.set(e);
-                    loading.set(false);
                 }
                 Err(e) => {
                     error_msg.set(e.to_string());
                     message.set("Changer le mot de passe".to_string());
-                    loading.set(false)
                 }
             }
+            loading.set(false)
         });
     };
 

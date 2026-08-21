@@ -333,7 +333,7 @@ use super::*;
 
         debug!("AUTH : user found in db");
 
-        credentials::verify(user_record.id, password).await
+        credentials::verify(&user_record.id, password).await
     }
 
     pub async fn get_user_record(email: &str) -> Result<Option<db::UserRecord>, ServerFnError> {
@@ -431,7 +431,7 @@ use super::*;
     ) -> Result<Result<(), String>, ServerFnError> {
         let db = db::get().await;
 
-        let UserAuthTry::Success(_) = credentials::verify(user_id.clone(), password).await? else {
+        let UserAuthTry::Success(_) = credentials::verify(&user_id, password).await? else {
             return Ok(Err("Mot de passe incorrect".to_string()));
         };
 
@@ -505,7 +505,7 @@ pub mod credentials {
         Ok(password_hash.to_string())
     }
 
-    pub async fn verify(user_id: UserId, password: &str) -> Result<UserAuthTry, ServerFnError> {
+    pub async fn verify(user_id: &UserId, password: &str) -> Result<UserAuthTry, ServerFnError> {
         let db = db::get().await;
 
         let user_cred_record_match: Option<UserCredRecord> = db
@@ -517,7 +517,7 @@ pub mod credentials {
             .map_err(|e| ServerFnError::new(e.to_string()))?;
 
         let Some(user_cred_record) = user_cred_record_match else {
-            return Ok(UserAuthTry::NonexistentCredentials(user_id));
+            return Ok(UserAuthTry::NonexistentCredentials(user_id.clone()));
         };
 
         let Ok(parsed_hash) = PasswordHash::new(&user_cred_record.password_hash) else {
@@ -525,7 +525,7 @@ pub mod credentials {
         };
 
         match Argon2::default().verify_password(password.as_bytes(), &parsed_hash) {
-            Ok(()) => Ok(UserAuthTry::Success(user_id)),
+            Ok(()) => Ok(UserAuthTry::Success(user_id.clone())),
             Err(_) => Ok(UserAuthTry::WrongPassword),
         }
     }
@@ -562,7 +562,7 @@ pub mod credentials {
     ) -> Result<Result<(), String>, ServerFnError> {
         let db = db::get().await;
 
-        let UserAuthTry::Success(_) = credentials::verify(user_id.clone(), old_password).await?
+        let UserAuthTry::Success(_) = credentials::verify(&user_id, old_password).await?
         else {
             return Ok(Err("Mot de passe incorrect".to_string()));
         };
