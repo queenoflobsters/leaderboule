@@ -6,6 +6,7 @@ const HAMBURGER_SVG: Asset = asset!("assets/icons/hamburger.svg");
 const LEADERBOARD_SVG: Asset = asset!("assets/icons/leaderboard.svg");
 const ACCOUNT_SVG: Asset = asset!("assets/icons/account.svg");
 const PEN_SVG: Asset = asset!("assets/icons/pen.svg");
+const BOOK_SVG: Asset = asset!("assets/icons/book.svg");
 
 #[component]
 pub fn Navbar() -> Element {
@@ -68,6 +69,14 @@ pub fn Navbar() -> Element {
                             onclick: on_link_click,
                             img { class: "route-icon", src: PEN_SVG, }
                             {Route::NewGame.title()}
+                        }
+                        Link {
+                            class: "route-entry",
+                            to: Route::History {},
+                            active_class: "active-route",
+                            onclick: on_link_click,
+                            img { class: "route-icon", src: BOOK_SVG, }
+                            {Route::History.title()}
                         }
                     }
                     div { class: "routes-container account-route",

@@ -61,24 +61,24 @@ pub mod current_user {
         Ok(user_profile)
     }
 
-    #[derive(Serialize, Deserialize, Clone)]
+    #[derive(Serialize, Deserialize, Clone, PartialEq)]
     pub struct GameSearchItem {
-        elo_change: i64,
-        won_score: u64,
-        lost_score: u64,
-        won_players: Vec<UserSearchItem>,
-        lost_players: Vec<UserSearchItem>,
-        played_at: u64,
+        pub elo_change: i64,
+        pub won_score: u64,
+        pub lost_score: u64,
+        pub won_players: Vec<UserSearchItem>,
+        pub lost_players: Vec<UserSearchItem>,
+        pub played_at: u64,
     }
 
     #[server]
-    pub async fn get_game_history() -> Result<Vec<GameSearchItem>, ServerFnError> {
+    pub async fn get_game_history(current_page: u64) -> Result<Vec<GameSearchItem>, ServerFnError> {
         use crate::server::{auth, db};
         let Some(session_record) = auth::session::get_from_extension() else {
             return Err(ServerFnError::new("User is not authenticated"));
         };
 
-        db::get_game_history(session_record.user_id).await
+        db::get_game_history(session_record.user_id, current_page).await
     }
 }
 
@@ -119,7 +119,7 @@ pub mod global {
         db::get_leaderboard_cards(search_query, sort_method, page).await
     }
 
-    #[derive(Serialize, Deserialize, PartialEq, Clone)]
+    #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
     pub struct UserSearchItem {
         pub username: String,
         pub elo: i64,

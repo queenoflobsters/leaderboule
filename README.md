@@ -14,7 +14,6 @@ HELLOASSO_CLIENT_SECRET="..."
 
 ### TODO
 - [ ] Pretty login
-- [ ] Game History
 - [ ] Achievements
 - [ ] Changer le logo
 - [ ] Page not found

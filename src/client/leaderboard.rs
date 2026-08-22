@@ -5,6 +5,7 @@ use crate::api::{
 use dioxus::{core::Task, prelude::*};
 
 const LEADERBOARD_CSS: Asset = asset!("assets/style/leaderboard.css");
+const PAGE_SWITCHER_CSS: Asset = asset!("assets/style/page_switcher.css");
 const RELOAD_SVG: Asset = asset!("assets/icons/reload.svg");
 const SORT_SVG: Asset = asset!("assets/icons/sort.svg");
 const TROPHY_SVG: Asset = asset!("assets/icons/trophy.svg");
@@ -43,8 +44,7 @@ pub fn Leaderboard() -> Element {
             div { class: "cards",
                 SuspenseBoundary {
                     fallback: |_| rsx! { p { class: "abnormal-state-message", "Patience..." } },
-                    // The suspended component receives clean signals
-                    CardsList { search_query, sort_method, current_page, refresh_count,  }
+                    UserCardsList { search_query, sort_method, current_page, refresh_count,  }
                 }
             }
 
@@ -134,7 +134,7 @@ fn Banner(
 }
 
 #[component]
-fn CardsList(
+fn UserCardsList(
     search_query: ReadSignal<String>,
     current_page: ReadSignal<u64>,
     sort_method: ReadSignal<LeaderboardSortMethod>,
@@ -155,7 +155,7 @@ fn CardsList(
         Some(Ok(user_perfs)) => rsx! {
             for (i, user) in user_perfs.iter().enumerate() {{
                 let use_index = if do_podium { Some(i) } else { None };
-                rsx! {CardItem { key: "{user.username}", use_index, user: user.clone() }}
+                rsx! {UserCard { key: "{user.username}", use_index, user: user.clone() }}
             }}
         },
         Some(Err(e)) => rsx! {
@@ -168,7 +168,7 @@ fn CardsList(
 }
 
 #[component]
-fn CardItem(use_index: Option<usize>, user: LeaderboardUserCard) -> Element {
+fn UserCard(use_index: Option<usize>, user: LeaderboardUserCard) -> Element {
     let podium_class = match use_index {
         Some(0) => "first",
         Some(1) => "second",
@@ -209,6 +209,8 @@ fn CardItem(use_index: Option<usize>, user: LeaderboardUserCard) -> Element {
 #[component]
 fn PageSwitcher(current_page: u64, current_page_change: EventHandler<u64>) -> Element {
     rsx! {
+        document::Stylesheet { href: PAGE_SWITCHER_CSS }
+
         div { class: "page-switcher-container",
             button { class: "page-switcher-button",
                 onclick: move |_| current_page_change.call(0),

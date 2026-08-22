@@ -1,9 +1,9 @@
 use dioxus::{core::Task, prelude::*};
 
-use crate::api::{
+use crate::{api::{
     db::{self, global::{self, GameSendItem, UserSearchItem}},
     utils,
-};
+}, client::route::Route};
 
 const NEW_GAME_CSS: Asset = asset!("assets/style/new_game.css");
 const MINUS_SVG: Asset = asset!("assets/icons/minus.svg");
@@ -20,6 +20,7 @@ struct TeamMembers(Vec<UserSearchItem>);
 #[component]
 pub fn NewGame() -> Element {
     let mut error_msg = use_context_provider(|| Signal::new(ErrorMsg::default()));
+    let nav = use_navigator();
 
     let left_score = use_signal(|| TeamScore(13));
     let right_score = use_signal(|| TeamScore(0));
@@ -39,8 +40,8 @@ pub fn NewGame() -> Element {
         spawn(async move {
             match db::global::register_game(game).await {
                 Ok(Ok(())) => {
-                    submit_button_msg.set("Partie enregistrée !".to_string())
-                    // TODO navigate to game history
+                    submit_button_msg.set("Partie enregistrée !".to_string());
+                    nav.push(Route::History);
                 }
                 Ok(Err(e)) => {
                     submit_button_msg.set("Valider".to_string());

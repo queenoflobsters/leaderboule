@@ -1,0 +1,16 @@
+.page-switcher-container {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  align-items: center;
+}
+
+.page-switcher-text {
+  font-size: 1.5rem;
+  font-weight: bold;
+}
+
+.page-switcher-button {
+  font-weight: bold;
+  font-size: 1.2rem;
+}

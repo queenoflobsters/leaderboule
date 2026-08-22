@@ -99,7 +99,7 @@ pub async fn get() -> &'static Surreal<Client> {
 pub async fn get_leaderboard_cards(
     search_query: String,
     sort_method: LeaderboardSortMethod,
-    page: u64,
+    current_page: u64,
 ) -> Result<Vec<LeaderboardUserCard>, ServerFnError> {
     let db = get().await;
 
@@ -122,7 +122,7 @@ pub async fn get_leaderboard_cards(
     let mut cards: Vec<LeaderboardUserCard> = db
         .query(query)
         .bind(("limit", USER_PAGE_SIZE))
-        .bind(("start", page * USER_PAGE_SIZE))
+        .bind(("start", current_page * USER_PAGE_SIZE))
         .bind(("search", search_query))
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?
@@ -289,8 +289,35 @@ async fn map_usernames(
     Ok(Ok([left_team_users, right_team_users]))
 }
 
-pub async fn get_game_history(user_id: UserId) -> Result<Vec<GameSearchItem>, ServerFnError> {
-    todo!()
+pub async fn get_game_history(
+    user_id: UserId,
+    current_page: u64,
+) -> Result<Vec<GameSearchItem>, ServerFnError> {
+    let db = get().await;
+
+    let history = db
+        .query(
+            "SELECT 
+                players[WHERE id = $user_id][0].elo_change AS elo_change,
+                won_score,
+                lost_score,
+                played_at,
+                players[WHERE won = true].{ username: id.username, elo: elo_change } AS won_players,
+                players[WHERE won = false].{ username: id.username, elo: elo_change } AS lost_players
+            FROM game
+            WHERE players.*.id CONTAINS $user_id
+            ORDER BY played_at DESC
+            LIMIT $limit START $start;",
+        )
+        .bind(("user_id", user_id))
+        .bind(("limit", USER_PAGE_SIZE))
+        .bind(("start", current_page * USER_PAGE_SIZE))
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))?
+        .take(0)
+        .map_err(|e| ServerFnError::new(e.to_string()))?;
+
+    Ok(history)
 }
 
 impl SurrealValue for LeaderboardUserCard {
@@ -373,6 +400,7 @@ impl SurrealValue for UserProfile {
         }
     }
 }
+
 impl SurrealValue for UserSearchItem {
     fn kind_of() -> surrealdb::types::Kind {
         surrealdb::types::Kind::Any
@@ -392,6 +420,46 @@ impl SurrealValue for UserSearchItem {
             Value::Object(mut obj) => Ok(Self {
                 username: SurrealValue::from_value(obj.remove("username").unwrap_or(Value::None))?,
                 elo: SurrealValue::from_value(obj.remove("elo").unwrap_or(Value::None))?,
+            }),
+            other => <()>::from_value(other).map(|_| unreachable!()),
+        }
+    }
+}
+impl SurrealValue for GameSearchItem {
+    fn kind_of() -> surrealdb::types::Kind {
+        surrealdb::types::Kind::Any
+    }
+
+    fn into_value(self) -> surrealdb::types::Value {
+        panic!("You should never write a GameSearchItem into the database");
+    }
+
+    fn from_value(value: surrealdb::types::Value) -> Result<Self, surrealdb::Error>
+    where
+        Self: Sized,
+    {
+        use surrealdb::types::{SurrealValue, Value};
+
+        match value {
+            Value::Object(mut obj) => Ok(Self {
+                elo_change: SurrealValue::from_value(
+                    obj.remove("elo_change").unwrap_or(Value::None),
+                )?,
+                won_score: SurrealValue::from_value(
+                    obj.remove("won_score").unwrap_or(Value::None),
+                )?,
+                lost_score: SurrealValue::from_value(
+                    obj.remove("lost_score").unwrap_or(Value::None),
+                )?,
+                won_players: SurrealValue::from_value(
+                    obj.remove("won_players").unwrap_or(Value::None),
+                )?,
+                lost_players: SurrealValue::from_value(
+                    obj.remove("lost_players").unwrap_or(Value::None),
+                )?,
+                played_at: SurrealValue::from_value(
+                    obj.remove("played_at").unwrap_or(Value::None),
+                )?,
             }),
             other => <()>::from_value(other).map(|_| unreachable!()),
         }
