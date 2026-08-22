@@ -3,7 +3,8 @@ use dioxus::prelude::*;
 use crate::{
     api::{
         auth,
-        db::current_user::{self, UserProfile}, utils,
+        db::current_user::{self, UserProfile},
+        utils,
     },
     client::route::Route,
 };
@@ -20,7 +21,7 @@ fn hard_reload() {
     #[cfg(target_arch = "wasm32")] // make rust-analyzer ignore the block
     #[cfg(feature = "web")]
     if let Some(window) = web_sys::window() {
-        window.location().reload();
+        _ = window.location().reload();
     }
 }
 

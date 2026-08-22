@@ -22,8 +22,8 @@ impl UserGameLog {
         this: &UserWithElo,
         this_score: u64,
         other_score: u64,
-        this_team_users: &Vec<UserWithElo>,
-        other_team_users: &Vec<UserWithElo>,
+        this_team_users: &[UserWithElo],
+        other_team_users: &[UserWithElo],
     ) -> Self {
         let this_team = this_team_users
             .iter()
