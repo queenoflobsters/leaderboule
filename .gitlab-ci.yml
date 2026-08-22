@@ -1,0 +1,67 @@
+stages:
+  - build
+  - deploy
+
+# Il va forcément falloir modifier des trucs, j'ai plus ou moins compris ce qu'il se passe mais bon...
+variables:
+  DOCKER_BUILDKIT: "1"
+  DOCKER_TLS_CERTDIR: "/certs"
+
+build-and-push:
+  stage: build
+  image: docker:27-cli
+  services:
+    - docker:27-dind
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+    - docker buildx create --use --name ci-builder
+  script:
+    - |
+      docker buildx build \
+        --platform linux/amd64 \
+        --push \
+        --cache-from type=registry,ref=$CI_REGISTRY_IMAGE:buildcache \
+        --cache-to type=registry,ref=$CI_REGISTRY_IMAGE:buildcache,mode=max \
+        --tag "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" \
+        --tag "$CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG" \
+        --tag "$CI_REGISTRY_IMAGE:latest" \
+        .
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# Il va forcément falloir modifier des trucs, j'ai plus ou moins compris ce qu'il se passe mais bon...
+deploy:
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    # Install SSH client
+    - apk add --no-cache openssh-client
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
+  script:
+    - |
+      ssh $SERVER_USER@$SERVER_HOST "
+      
+        # TODO FIND PATH TO APP
+        cd /path/to/leaderboule/binary &&
+
+        # Create the .env with gitlab CI/CD variables
+        cat << 'EOF' > .env
+        DATABASE_USER=${DATABASE_USER}
+        DATABASE_PASS=${DATABASE_PASS}
+        HELLOASSO_CLIENT_ID=${HELLOASSO_CLIENT_ID}
+        HELLOASSO_CLIENT_SECRET=${HELLOASSO_CLIENT_SECRET}
+        EOF
+
+        # Start the container
+        echo '$CI_REGISTRY_PASSWORD' | docker login -u '$CI_REGISTRY_USER' --password-stdin '$CI_REGISTRY' &&
+        docker compose pull app &&
+        docker compose up -d --no-deps app &&
+        docker image prune -f
+      "
+  rules:
+    # Only deploy when pushing/merging on main branch
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
