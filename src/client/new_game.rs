@@ -24,6 +24,11 @@ pub fn NewGame() -> Element {
 
     let left_score = use_signal(|| TeamScore(13));
     let right_score = use_signal(|| TeamScore(0));
+    let (left_title, right_title) = if left_score().0 >= right_score().0 {
+        ("Équipe Gagnante", "Équipe Perdante")
+    } else {
+        ("Équipe Perdante", "Équipe Gagnante")
+    };
     let left_team_members = use_signal(TeamMembers::default);
     let right_team_members = use_signal(TeamMembers::default);
     let mut submit_button_msg = use_signal(|| "Valider".to_string());
@@ -60,12 +65,12 @@ pub fn NewGame() -> Element {
         document::Stylesheet { href : NEW_GAME_CSS }
         div { class: "new-game-container",
             div { class: "team-entry-container",
-                TeamEntry { title: "Équipe Gagnante",
+                TeamEntry { title: left_title,
                      score: left_score,
                      members: left_team_members
                 }
                 TeamEntry {
-                    title: "Équipe Perdante",
+                    title: right_title,
                     score: right_score,
                     members: right_team_members,
                 }
