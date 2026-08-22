@@ -16,6 +16,14 @@ const TOTAL_SVG: Asset = asset!("assets/icons/total.svg");
 const PERCENT_SVG: Asset = asset!("assets/icons/percent.svg");
 const HASH_SVG: Asset = asset!("assets/icons/hash.svg");
 
+fn hard_reload() {
+    #[cfg(target_arch = "wasm32")] // make rust-analyzer ignore the block
+    #[cfg(feature = "web")]
+    if let Some(window) = web_sys::window() {
+        window.location().reload();
+    }
+}
+
 #[component]
 pub fn Account() -> Element {
     let profile_hook = use_server_future(current_user::get_profile)?;
@@ -171,6 +179,7 @@ fn UsernameChanger(error_msg: Signal<String>) -> Element {
                         password.set(String::new());
                         value.set(String::new());
                         loading.set(false);
+                        hard_reload();
                     }
                 }
                 Ok(Err(e)) => {
@@ -238,6 +247,7 @@ fn PasswordChanger(error_msg: Signal<String>) -> Element {
                         message.set("Mot de passe changé avec succès".to_string());
                         password_new.set(String::new());
                         password_old.set(String::new());
+                        hard_reload();
                     }
                 }
                 Ok(Err(e)) => {
