@@ -174,10 +174,10 @@ pub async fn register_game(
     let db = get().await;
 
     if let Some(game_record) = get_recent_game(&user_id).await? {
-        let remaining_secs =
-            game_record.played_at + GAME_REGISTRY_COOLDOWN - utils::current_time_secs();
+        let remaining_secs = (game_record.played_at + GAME_REGISTRY_COOLDOWN)
+            .saturating_sub(utils::current_time_secs());
         return Ok(Err(format!(
-            "Tu pourras entrer une nouvelle partie dans {:.2}:{}",
+            "Tu pourras entrer une nouvelle partie dans {:02}:{:02}",
             remaining_secs / 60,
             remaining_secs % 60
         )));

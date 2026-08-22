@@ -95,7 +95,7 @@ impl HelloassoClient {
         // added time for security
         let expire_instant = Instant::now() + Duration::from_secs(60);
 
-        let token_read_guard = self.tokens.read().await.clone();
+        let token_read_guard = self.tokens.write().await.clone();
 
         match token_read_guard {
             Some(ref tokens) if tokens.expires_at > expire_instant => {

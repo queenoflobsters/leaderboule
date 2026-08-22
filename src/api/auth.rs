@@ -25,15 +25,16 @@ pub async fn login(email: String, password: String) -> Result<Result<(), String>
         // SCENARIO 3 : The user doesn't exist in the DB
         UserAuthTry::NonexistentAccount => {
             // Check Helloasso to see the email is registered
-            if let Some(user_id) = auth::account::try_create(&email, &password).await? {
+            match auth::account::try_create(&email, &password).await? {
                 // SCENARIO 3.1 The user exists in Helloasso
-                // Create a session_record and fill the cookie
-                let token = auth::session::create(user_id).await?;
-                auth::cookie::create_in_response(token)?;
-                Ok(Ok(()))
-            // SCENARIO 3.2 : The user is not registered in Helloasso
-            } else {
-                Ok(Err("Email non enregistré chez Helloasso".to_string()))
+                Ok(user_id) => {
+                    // Create a session_record and fill the cookie
+                    let token = auth::session::create(user_id).await?;
+                    auth::cookie::create_in_response(token)?;
+                    Ok(Ok(()))
+                }
+                // SCENARIO 3.2 : The user is not registered in Helloasso
+                Err(e) => Ok(Err(e)),
             }
         }
         // SCENARIO 4 : User exists in DB but has no credentials in DB
@@ -55,7 +56,10 @@ pub async fn logout() -> Result<(), ServerFnError> {
 }
 
 #[server]
-pub async fn change_username(new_username: String, password: String) -> Result<Result<(), String>, ServerFnError> {
+pub async fn change_username(
+    new_username: String,
+    password: String,
+) -> Result<Result<(), String>, ServerFnError> {
     use crate::server::auth;
 
     let Some(session_record) = auth::session::get_from_extension() else {
@@ -66,7 +70,10 @@ pub async fn change_username(new_username: String, password: String) -> Result<R
 }
 
 #[server]
-pub async fn change_password(old_password: String, new_password: String) -> Result<Result<(), String>, ServerFnError> {
+pub async fn change_password(
+    old_password: String,
+    new_password: String,
+) -> Result<Result<(), String>, ServerFnError> {
     use crate::server::auth;
 
     let Some(session_record) = auth::session::get_from_extension() else {

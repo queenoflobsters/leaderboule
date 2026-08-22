@@ -60,7 +60,7 @@ DEFINE FIELD IF NOT EXISTS best_elo ON TABLE user
     END;
 
 -- Indexes for unique values and fast searching
-DEFINE INDEX IF NOT EXISTS idx_user_leaderboard ON TABLE user FIELDS elo, games_played, games_lost;
+DEFINE INDEX IF NOT EXISTS idx_user_leaderboard ON TABLE user FIELDS elo, games_played;
 DEFINE INDEX IF NOT EXISTS idx_user_username_unique ON TABLE user FIELDS username UNIQUE;
 DEFINE INDEX IF NOT EXISTS idx_user_email_unique ON TABLE user FIELDS email UNIQUE;
 DEFINE INDEX IF NOT EXISTS idx_user_search ON TABLE user FIELDS username FULLTEXT ANALYZER user_search_analyzer;
@@ -69,11 +69,11 @@ DEFINE INDEX IF NOT EXISTS idx_user_search ON TABLE user FIELDS username FULLTEX
 -- II. define the game table
 DEFINE TABLE IF NOT EXISTS game SCHEMALESS;
 
-DEFINE FIELD IF NOT EXISTS won_score ON TABLE game TYPE int
+DEFINE FIELD IF NOT EXISTS won_score ON TABLE game
     TYPE int
     ASSERT $value >= 0 AND $value <= 13 AND $value > $this.lost_score;
 
-DEFINE FIELD IF NOT EXISTS lost_score ON TABLE game TYPE int
+DEFINE FIELD IF NOT EXISTS lost_score ON TABLE game
     TYPE int
     ASSERT $value >= 0 AND $value <= 13 AND $value < $this.won_score;
 
@@ -113,7 +113,7 @@ DEFINE FIELD IF NOT EXISTS expires_at ON TABLE session
     ASSERT $value > 0;
 
 DEFINE INDEX IF NOT EXISTS idx_session_user ON TABLE session FIELDS user_id;
-DEFINE INDEX IF NOT EXISTS idx_session_expires ON TABLE session FIELDS expries_at;
+DEFINE INDEX IF NOT EXISTS idx_session_expires ON TABLE session FIELDS expires_at;
 
 
 -- IV. define the user_cred table

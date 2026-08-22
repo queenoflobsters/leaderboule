@@ -192,7 +192,8 @@ pub mod cookie {
     pub fn create_in_response(session_token: SessionToken) -> Result<(), ServerFnError> {
         // Generate cookie header directly
         let cookie_str = format!(
-            "session_token={}; Path=/; HttpOnly; SameSite=Lax; Max-Age={}",
+            // "session_token={}; Path=/; HttpOnly; SameSite=Lax; Max-Age={}",
+            "session_token={}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age={}",
             session_token.to_uuid()?,
             utils::THIRTY_DAYS_IN_SECS
         );
@@ -319,7 +320,9 @@ pub mod middleware {
 
 pub mod account {
 
-use super::*;
+    use crate::server::auth::credentials::verify_password_validity;
+
+    use super::*;
 
     /// Returns the user id
     /// 1. Search inside the DB for user with this email
@@ -351,7 +354,10 @@ use super::*;
     }
 
     /// 2. Search if they are registered in Helloasso
-    pub async fn try_create(email: &str, password: &str) -> Result<Option<UserId>, ServerFnError> {
+    pub async fn try_create(
+        email: &str,
+        password: &str,
+    ) -> Result<Result<UserId, String>, ServerFnError> {
         debug!("AUTH : asking Helloasso if `{}` is an adherent", email);
         let helloasso_payer = helloasso::get_adherent(email).await?;
 
@@ -359,17 +365,22 @@ use super::*;
             // There is no adherent with this email
             None => {
                 debug!("AUTH : Helloasso has no adherent with this email, connexion refused");
-                Ok(None)
+                Ok(Err(
+                    "Cet email n'est pas dans enregistré chez Helloasso".to_string()
+                ))
             }
             // 3. There is an adherent with this email
             // Create an account and return the user id
             Some(payer) => {
                 debug!("AUTH : Helloasso has user with email `{}`", email);
+                if let Err(e) = credentials::verify_password_validity(password) {
+                    return Ok(Err(e));
+                }
                 let user_id = create_user_record_in_db(payer).await?;
                 credentials::create(&user_id, password)
                     .await?
                     .map_err(|s| ServerFnError::new(s))?;
-                Ok(Some(user_id))
+                Ok(Ok(user_id))
             }
         }
     }
@@ -530,13 +541,21 @@ pub mod credentials {
         }
     }
 
+    pub fn verify_password_validity(password: &str) -> Result<(), String> {
+        if password.len() < 8 {
+            return Err("Mot de passe trop court".to_string());
+        }
+        Ok(())
+    }
+
     pub async fn create(
         user_id: &UserId,
         password: &str,
     ) -> Result<Result<(), String>, ServerFnError> {
-        if password.len() < 8 {
-            return Ok(Err("Mot de passe trop court".to_string()));
+        if let Err(e) = verify_password_validity(password) {
+            return Ok(Err(e));
         }
+
         let db = db::get().await;
         let user_cred_id = UserCredId::new_v7();
         let password_hash = credentials::create_hash(password)?;
@@ -562,8 +581,7 @@ pub mod credentials {
     ) -> Result<Result<(), String>, ServerFnError> {
         let db = db::get().await;
 
-        let UserAuthTry::Success(_) = credentials::verify(&user_id, old_password).await?
-        else {
+        let UserAuthTry::Success(_) = credentials::verify(&user_id, old_password).await? else {
             return Ok(Err("Mot de passe incorrect".to_string()));
         };
 
