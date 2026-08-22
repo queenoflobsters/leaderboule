@@ -24,3 +24,4 @@ HELLOASSO_CLIENT_SECRET="..."
 
 ### wc command
 `wc -l src/client/* src/api/* src/server/* assets/style/* src/main.rs db_init.sql`
+# surreal start --user root --pass root --bind 127.0.0.1:8000 rocksdb:boules.db
