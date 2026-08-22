@@ -23,6 +23,7 @@ use crate::{
 pub static DB: OnceCell<Surreal<Client>> = OnceCell::const_new();
 const INIT_SQL: &'static str = include_str!("../../db_init.sql");
 const USER_PAGE_SIZE: u64 = 8;
+const GAME_PAGE_SIZE: u64 = 5;
 const GAME_REGISTRY_COOLDOWN: u64 = 15 * 60;
 
 /// User database model
@@ -310,8 +311,8 @@ pub async fn get_game_history(
             LIMIT $limit START $start;",
         )
         .bind(("user_id", user_id))
-        .bind(("limit", USER_PAGE_SIZE))
-        .bind(("start", current_page * USER_PAGE_SIZE))
+        .bind(("limit", GAME_PAGE_SIZE))
+        .bind(("start", current_page * GAME_PAGE_SIZE))
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?
         .take(0)

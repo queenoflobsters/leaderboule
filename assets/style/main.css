@@ -3,27 +3,29 @@
 @import url('https://fonts.googleapis.com/css2?family=Ubuntu:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400;1,500;1,700&display=swap');
 
 body {
-    background-color: #111;
-    color: #ffffff;
-    font-family: Ubuntu, 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    margin: 20px;
+  background-color: #111;
+  color: #ffffff;
+  font-family: Ubuntu, 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  margin: 20px;
 }
 
-*, *::before, *::after {
-    box-sizing: border-box;
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
 button {
-    cursor: pointer;
-    border: none;
-    border-radius: 0.3rem;
-    padding: 0.7rem;
-    font-weight: bold;
-    background-color: #222;
-    color: #bbb;
+  cursor: pointer;
+  border: none;
+  border-radius: 0.3rem;
+  padding: 0.7rem;
+  font-weight: bold;
+  background-color: #222;
+  color: #bbb;
 }
 
-input {  
+input {
   text-indent: 0.5rem;
   border: none;
   outline: none;

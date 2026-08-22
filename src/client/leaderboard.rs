@@ -224,7 +224,7 @@ fn PageSwitcher(current_page: u64, current_page_change: EventHandler<u64>) -> El
                 "{current_page+1}"
             }
             button { class: "page-switcher-button",
-                onclick: move |_| if current_page < 13 { current_page_change.call(current_page + 1) },
+                onclick: move |_| current_page_change.call(current_page + 1),
                 ">>"
             }
         }
