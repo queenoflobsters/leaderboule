@@ -23,9 +23,9 @@ SSH_PRIVATE_KEY="..."
 
 ### Développement
 
-- Installe le langage (Rust)[https://rust-lang.org/tools/install/]
-- Installe (SurrealDB)[https://surrealdb.com/surrealdb/install]
-- Installe (Dioxus)[https://dioxuslabs.com/learn/0.7/getting_started/]
+- Installe le langage [Rust](https://rust-lang.org/tools/install/)
+- Installe [SurrealDB](https://surrealdb.com/surrealdb/install)
+- Installe [Dioxus](https://dioxuslabs.com/learn/0.7/getting_started/)
 
 - Lance la databse :
 ```bash
@@ -74,4 +74,5 @@ docker compose up --build
 - [ ] Documentation
 
 Compter le nombre de lignes de code (j'aime bien faire ça)
+
 `wc -l src/client/* src/api/* src/server/* assets/style/* src/main.rs src/init.sql`
