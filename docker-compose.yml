@@ -23,11 +23,12 @@ services:
   # Container 2: Dioxus App
   app:
     build: .
-    init: true # THIS LINE WILL CAUSE PROBLEMS SOMETIMES ?
+    image: registry.gitlab.com/sia-insa-lyon/va/petanque-insa-club:latest
+    init: true 
     environment:
       - DATABASE_URL=surrealdb:8000
-      - DATABASE_USER=${DATABASE_USER}
-      - DATABASE_PASS=${DATABASE_PASS}
+      - DATABASE_USER=${DATABASE_USER:~root}
+      - DATABASE_PASS=${DATABASE_PASS:~root}
       - HELLOASSO_CLIENT_ID=${HELLOASSO_CLIENT_ID}
       - HELLOASSO_CLIENT_SECRET=${HELLOASSO_CLIENT_SECRET}
     ports:
