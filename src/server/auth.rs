@@ -28,14 +28,17 @@ use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use surrealdb::types::{RecordId, RecordIdKey, SurrealValue, Uuid};
 
+/// Identifiant d'une session utilisateur dans la database
 #[derive(Debug, Serialize, Deserialize, Clone, SurrealValue)]
 #[serde(transparent)]
 pub struct SessionToken(pub RecordId);
 
+/// Identifiant d'un utilisateur dans la database
 #[derive(Debug, Serialize, Deserialize, Clone, SurrealValue, PartialEq)]
 #[serde(transparent)]
 pub struct UserId(pub RecordId);
 
+/// Identifiant du mot de passe de l'utilisateur dans la database
 #[derive(Debug, Serialize, Deserialize, Clone, SurrealValue)]
 #[serde(transparent)]
 pub struct UserCredId(pub RecordId);
@@ -46,6 +49,7 @@ impl SessionToken {
         Self(RecordId::new("session", Uuid::new_v7()))
     }
 
+    /// Renvoie l'UUID interne de l'identifiant
     pub fn to_uuid(&self) -> Result<Uuid, ServerFnError> {
         match self.0.key {
             RecordIdKey::Uuid(uuid) => Ok(uuid),
@@ -56,6 +60,7 @@ impl SessionToken {
 }
 
 impl std::str::FromStr for SessionToken {
+    // apprécie l'anglais mon reuf j'étais dans ma zone
     // this is absolutly dreadful but honestly hilarous I couldn't get the uuid crate from a surrealdb re-export so I just converted it to a ServerFnError without even having access to the type
     type Err = ServerFnError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -68,8 +73,6 @@ impl std::str::FromStr for SessionToken {
 }
 
 impl UserId {
-    // pub fn new_v7() -> (UserId, UserCredId) { let uuid = Uuid::new_v7(); let user_id = UserId(RecordId::new("user", uuid)); let user_cred_id = UserCredId(RecordId::new("user_cred", uuid)); (user_id, user_cred_id) }
-    // pub fn to_uuid(&self) -> Result<Uuid, ServerFnError> { match self.0.key { RecordIdKey::Uuid(uuid) => Ok(uuid), RecordIdKey::String(ref s) => Ok(s.parse().map_err(|e| ServerFnError::new(e))?), _ => Err(ServerFnError::new("Unable to parse UserId into Uuid")), } }
     /// Create a new UserId with a Uuid v7
     pub fn new_v7() -> Self {
         Self(RecordId::new("user", Uuid::new_v7()))
@@ -84,7 +87,7 @@ impl UserCredId {
     }
 }
 
-/// Session database model
+/// Modèle d'une session utilisateur dans la databse
 #[derive(Debug, Serialize, Deserialize, Clone, SurrealValue)]
 pub struct SessionRecord {
     pub id: SessionToken,
@@ -92,6 +95,7 @@ pub struct SessionRecord {
     pub expires_at: u64,
 }
 
+/// Modèle du mot de passe de l'utilisateur dans la database
 #[derive(Debug, Serialize, Deserialize, Clone, SurrealValue)]
 pub struct UserCredRecord {
     pub id: UserCredId,
@@ -99,6 +103,7 @@ pub struct UserCredRecord {
     pub password_hash: String,
 }
 
+/// Résultat d'une tentative de connexion 
 pub enum UserAuthTry {
     Success(UserId),
     NonexistentCredentials(UserId),
@@ -106,10 +111,21 @@ pub enum UserAuthTry {
     NonexistentAccount,
 }
 
+/// Gère la session de l'utilisateur
+/// Comment ça fonctionne ?
+/// - L'utilisateur se connecte
+/// - On crée un session_token
+/// - On le range dans la db en l'associant à l'utilisateur
+/// - On stocke le session token dans un cookie
+/// QUAND L'UTILISATEUR REVIENT
+/// - On check le cookie
+/// - On récupère le session_token
+/// - On regarde si il match à un utilisateur et si il a pas expiré
+/// - Si oui, le middleware associe le `user_id` avec le `session_token`
 pub mod session {
     use super::*;
 
-    /// Helper functiparse_session_token_from_cookieon to parse session_token cookie from raw headers
+    /// Récupère un `SessionToken` directement depuis les headers
     pub fn parse_token_from_cookie(headers: &HeaderMap) -> Option<SessionToken> {
         let cookie_header = headers.get(axum::http::header::COOKIE)?.to_str().ok()?;
         // Split by ';'
@@ -125,7 +141,7 @@ pub mod session {
         None
     }
 
-    /// Get the session_token from the axum context and delete it from DB
+    /// Enlève l'entrée de session si jamais l'utilisateur se déconnecte
     pub async fn delete() -> Result<(), ServerFnError> {
         let session_record = get_from_extension().ok_or(ServerFnError::new(
             "Unable to get SessionRecord from FullstackCtx",
@@ -139,6 +155,7 @@ pub mod session {
         Ok(())
     }
 
+    /// Récupère la session depuis la database
     pub async fn get_from_db(session_token: &SessionToken) -> Option<SessionRecord> {
         let db = db::get().await;
         let session_match: Option<SessionRecord> = db.select(&session_token.0).await.ok().flatten();
@@ -157,11 +174,14 @@ pub mod session {
         None
     }
 
+    /// Récupère le `SessionRecord` depuis l'extension axum
+    /// qui a été populé par le middleware
     pub fn get_from_extension() -> Option<SessionRecord> {
         let ctx = FullstackContext::current()?;
         ctx.extension::<SessionRecord>()
     }
-    /// Generate session and insert into SurrealDB
+
+    /// Génère un SessionRecord et le range dans la database bien au chaud
     pub async fn create(user_id: UserId) -> Result<SessionToken, ServerFnError> {
         let session_token = SessionToken::new_v7();
         let db = db::get().await;
@@ -185,10 +205,12 @@ pub mod session {
     }
 }
 
+/// Gestion des cookie
+/// (juste pour stocker le `session_token` hein, on vole pas les données des gens ici)
 pub mod cookie {
     use super::*;
 
-    /// Generate cookie header and modify response via context
+    /// Génère le header HTTP du cookie et le range dans la réponse 
     pub fn create_in_response(session_token: SessionToken) -> Result<(), ServerFnError> {
         // Generate cookie header directly
         let cookie_str = format!(
@@ -213,7 +235,8 @@ pub mod cookie {
         Ok(())
     }
 
-    /// Expire cookie by generating clear one
+    /// Péremption un cookie en générant un nouveau vide
+    /// (grosse grosse phrase)
     pub fn clear_from_response() -> Result<(), ServerFnError> {
         let clear_cookie = "session_token=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0";
 
@@ -227,11 +250,20 @@ pub mod cookie {
     }
 }
 
+/// AAAAAH QU'EST-CE QUE J'AI GALÉRÉ SUR LE MIDDLEWARE
 pub mod middleware {
 
     use super::*;
 
-    /// Axum Middleware: Populates AuthUser extension if cookie is valid.
+    /// Axum Middleware: Remplie le SesssionToken si le cookie est valide
+    /// Mode opératoire :
+    /// - Regarde ce que la requête veut, si c'est un fichier public alors basta
+    /// - Regarde le cookie, regarde si il est dans la database
+    /// - Si oui, remplie l'extension Axum avec le `session_token` et le `user_id`
+    /// - Si non, regarde le type de requête
+    /// - Si ça navigue vers une page privée alors renvoie au login
+    /// - Si ça nagigue vers un page public alors continuez mademoiselle
+    /// - Si ça nagigue PAS vers une page alors c'est appel API et ça passe
     pub async fn server_auth_guard(mut req: Request, next: Next) -> Response {
         let path = req.uri().path();
         debug!("GUARD : request to path : {}", path);
@@ -267,6 +299,7 @@ pub mod middleware {
         next.run(req).await
     }
 
+    /// Vérifie si la requête correspond à un asset public
     fn is_static_asset(path: &str) -> bool {
         // 1. public assets and folders
         if path.starts_with("/public")
@@ -290,6 +323,7 @@ pub mod middleware {
         // 3. Public routes
     }
 
+    /// Vérifie si la requête correspond à une navigation
     fn is_page_navigation(headers: &HeaderMap, method: &Method) -> bool {
         // 1. Sec-Fetch-Mode is "navigate" for full page loads / URL bar entries
         if let Some(mode) = headers.get("sec-fetch-mode") {
@@ -321,8 +355,7 @@ pub mod middleware {
 pub mod account {
     use super::*;
 
-    /// Returns the user id
-    /// 1. Search inside the DB for user with this email
+    /// Vérifie si l'utilisateur existe et si le mot de passe est le bon
     pub async fn exists(email: &str, password: &str) -> Result<UserAuthTry, ServerFnError> {
         debug!("AUTH : searching inside db for user with email `{}`", email);
 
@@ -336,6 +369,7 @@ pub mod account {
         credentials::verify(&user_record.id, password).await
     }
 
+    /// Récupère le `UserRecord` depuis la databse à partir de l'email
     pub async fn get_user_record(email: &str) -> Result<Option<db::UserRecord>, ServerFnError> {
         let db = db::get().await;
 
@@ -350,7 +384,8 @@ pub mod account {
         Ok(user_match)
     }
 
-    /// 2. Search if they are registered in Helloasso
+    /// Appel le sous-système Helloasso pour vérifier si l'utilisateur est un adhérent
+    /// Si oui, créer le mot de passe dans la base de donnée et le `UserRecord`
     pub async fn try_create(
         email: &str,
         password: &str,
@@ -382,7 +417,7 @@ pub mod account {
         }
     }
 
-    /// Returns the user id
+    /// Créer le `UserRecord` grâce aux données de Helloasso
     async fn create_user_record_in_db(
         payer: helloasso::PayerInfo,
     ) -> Result<UserId, ServerFnError> {
@@ -432,6 +467,7 @@ pub mod account {
         Ok(id)
     }
 
+    /// Change le nom d'utilisateur 
     pub async fn change_username(
         user_id: &UserId,
         new_username: &str,
@@ -472,6 +508,7 @@ pub mod account {
         Ok(Ok(()))
     }
 
+    /// Vérifie si le nom d'utilisateur est conforme
     async fn check_username_validity(username: &str) -> Result<Result<(), String>, ServerFnError> {
         let db = db::get().await;
 
@@ -501,6 +538,7 @@ pub mod account {
 pub mod credentials {
     use super::*;
 
+    /// Crée un hash à partir d'un mot de passe
     pub fn create_hash(password: &str) -> Result<String, ServerFnError> {
         let salt = SaltString::generate(&mut OsRng);
 
@@ -513,6 +551,7 @@ pub mod credentials {
         Ok(password_hash.to_string())
     }
 
+    /// Vérifie si le mot de passe est bien le mot de passe de l'utilisateur
     pub async fn verify(user_id: &UserId, password: &str) -> Result<UserAuthTry, ServerFnError> {
         let db = db::get().await;
 
@@ -538,13 +577,17 @@ pub mod credentials {
         }
     }
 
+    /// Vérifie la conformité d'un mot de passe
     pub fn verify_password_validity(password: &str) -> Result<(), String> {
+        // TODO make this more strict
         if password.len() < 8 {
             return Err("Mot de passe trop court".to_string());
         }
         Ok(())
     }
 
+    /// Crée un mot de passe et le fourrrrre dans la database
+    /// mmmh
     pub async fn create(
         user_id: &UserId,
         password: &str,
@@ -571,6 +614,7 @@ pub mod credentials {
         Ok(Ok(()))
     }
 
+    /// Change le mot de passe
     pub async fn change_password(
         user_id: &UserId,
         old_password: &str,

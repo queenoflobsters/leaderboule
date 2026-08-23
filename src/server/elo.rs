@@ -10,6 +10,7 @@ use crate::{
 
 pub const DEFAULT_ELO: u64 = 400;
 
+/// Le résultat des performances d'un utilisateur pendant une partie
 #[derive(Serialize, Deserialize, Clone, SurrealValue)]
 pub struct UserGameLog {
     pub id: UserId,
@@ -18,6 +19,7 @@ pub struct UserGameLog {
 }
 
 impl UserGameLog {
+    /// Construit à partir des données de la game
     pub fn construct(
         this: &UserWithElo,
         this_score: u64,
@@ -41,6 +43,7 @@ impl UserGameLog {
     }
 }
 
+/// La partie est-elle valide ????
 pub fn verify_game(game_item: &GameSendItem) -> Result<(), String> {
     if game_item.left_score > 13 || game_item.right_score > 13 {
         return Err("Le score maximum est de 13.".to_string());
@@ -100,9 +103,11 @@ pub fn compute_changes(
                 &right_team_users,
                 &left_team_users,
             )
-        })).collect()
+        }))
+        .collect()
 }
 
+/// Calcule la variation d'elo
 fn compute_user_new_elo(
     this_elo: u64,
     this_score: u64,
@@ -110,10 +115,16 @@ fn compute_user_new_elo(
     this_team: Vec<u64>,
     other_team: Vec<u64>,
 ) -> i64 {
+    // TODO TODO TODO TODO TODO
     let has_won = this_score > other_score;
+    // TODO TODO TODO TODO TODO
     if has_won {
+        // TODO TODO TODO TODO TODO
         100
+    // TODO TODO TODO TODO TODO
     } else {
+        // TODO TODO TODO TODO TODO
         -100
+        // TODO TODO TODO TODO TODO
     }
 }

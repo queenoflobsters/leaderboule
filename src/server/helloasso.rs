@@ -1,3 +1,14 @@
+/// COMMENT ÇA FONCTIONNE
+///     Pour faire un call à l'API Helloasso, il faut un `access_token`
+///     Pour avoir un `access_token` il faut un Client ID et un Client Secret, qui peuvent être récupérés sur le site d'Helloasso
+///     La requête avec le user_id et user_secret retourne un `access_token` EEEETT un `refresh_token`
+///     Pourquoi ? Parce que l'`access_token` n'est valable que pour 30 minutes, après il faut en redemander un
+///     MAIS tu peux pas en redemander un simplement avec ton user_id et ton user_secret (enfin si mais c'est pas recommander)
+///     Il faut faire un requête pour un NOUVEAU `access_token` avec le `refresh_token` qui lui est valable 30 jours
+///     Sauf que quand tu fais un requête pour un nouveau `access_token` ça te donne AUSSI un nouveau `refresh_token`
+///     Donc ils sont rafraichis en même temps en fait
+/// VOILÀ
+
 use dioxus::prelude::*;
 use serde::Deserialize;
 use std::{
@@ -13,6 +24,7 @@ const ASSOCIATION_SLUG: &'static str = "petanqu-insa-club";
 const ASSO_FORM_SLUG: &'static str = "adhesion-2025-2026-petanqu-insa-club";
 static HELLOASSO_CLIENT: OnceLock<HelloassoClient> = OnceLock::new();
 
+/// Initialise la connexion Helloasso
 pub fn get() -> &'static HelloassoClient {
     HELLOASSO_CLIENT.get_or_init(|| {
         let client_id = std::env::var("HELLOASSO_CLIENT_ID").unwrap();
@@ -21,6 +33,8 @@ pub fn get() -> &'static HelloassoClient {
     })
 }
 
+/// Communication avec l'API Helloasso
+/// Réponse à une demande de nouveaux Token
 #[derive(Deserialize)]
 struct TokenResponse {
     access_token: String,
@@ -28,6 +42,7 @@ struct TokenResponse {
     expires_in: u64,
 }
 
+/// Les tokens Helloasso
 #[derive(Clone)]
 struct HelloassoTokens {
     access_token: String,
@@ -35,6 +50,7 @@ struct HelloassoTokens {
     expires_at: Instant,
 }
 
+/// Singleton correspondant à une connexion avec Helloasso
 #[derive(Clone)]
 pub struct HelloassoClient {
     client: reqwest::Client,
@@ -43,6 +59,7 @@ pub struct HelloassoClient {
     tokens: Arc<RwLock<Option<HelloassoTokens>>>,
 }
 
+/// Retourne les information d'un utilisateur si il est présent dans la base de donnée
 pub async fn get_adherent(email: &str) -> Result<Option<PayerInfo>, ServerFnError> {
     // TODO for faster login time, implement a helloasso hook to listen to new memberships
     // store them in a new database table a create a new account for them at every adhesion
@@ -89,6 +106,7 @@ impl HelloassoClient {
         }
     }
 
+    /// Retourne le token d'accès à l'API
     async fn get_access_token(&self) -> Result<String, reqwest::Error> {
         debug!("HA : trying to read access_token");
 
@@ -113,6 +131,7 @@ impl HelloassoClient {
         }
     }
 
+    /// Fais une requête pour rafraîchir les tokens
     async fn request_token_refresh(
         &self,
         tokens: &HelloassoTokens,
@@ -139,6 +158,7 @@ impl HelloassoClient {
         Ok(res.access_token)
     }
 
+    /// Fais une requête pour le token d'accès
     async fn request_access_token(&self) -> Result<String, reqwest::Error> {
         let res = self
             .client
@@ -186,7 +206,7 @@ pub struct PayerInfo {
 }
 
 impl HelloassoResponse {
-    /// This consumes the HelloassoResponse
+    /// Consomme la réponse et la transforme en information sur le payeur
     fn aggregate_payers(self, email: &str) -> Option<PayerInfo> {
         let mut agg = PayerInfo::default();
 

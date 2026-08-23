@@ -22,13 +22,15 @@ use crate::{
     },
 };
 
+/// Référence à la database
 pub static DB: OnceCell<Surreal<Client>> = OnceCell::const_new();
+/// Fichier SQL servant à instantier la base de donnée
 const INIT_SQL: &'static str = include_str!("../init.sql");
 const USER_PAGE_SIZE: u64 = 8;
 const GAME_PAGE_SIZE: u64 = 5;
 const GAME_REGISTRY_COOLDOWN: u64 = 15 * 60;
 
-/// User database model
+/// Structure représentant un utilisateur stockée dans la base de donnée
 #[derive(Serialize, Deserialize, Clone, SurrealValue)]
 pub struct UserRecord {
     pub id: UserId,
@@ -40,12 +42,14 @@ pub struct UserRecord {
     pub games_won: u64,
 }
 
+/// Petite helper struct pour le calcul d'elo
 #[derive(Serialize, Deserialize, Clone, SurrealValue)]
 pub struct UserWithElo {
     pub id: UserId,
     pub elo: u64,
 }
 
+/// Identifiant de Partie
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash, SurrealValue)]
 #[serde(transparent)]
 pub struct GameId(pub RecordId);
@@ -56,7 +60,7 @@ impl GameId {
     }
 }
 
-// Game database model
+/// Structure d'une partie stockée dans la base de donnée
 #[derive(Serialize, Deserialize, Clone, SurrealValue)]
 pub struct GameRecord {
     pub id: GameId,
@@ -67,7 +71,7 @@ pub struct GameRecord {
     pub played_at: u64,
 }
 
-/// Initialize SurrealDB connection singleton
+/// Initialise la connexion avec la base de donnée
 pub async fn get() -> &'static Surreal<Client> {
     DB.get_or_init(|| async {
         let db_url = std::env::var("DATABASE_URL").unwrap_or("127.0.0.1:8000".to_string());
@@ -99,6 +103,7 @@ pub async fn get() -> &'static Surreal<Client> {
     .await
 }
 
+/// Parle avec la base de donnée et récupère les infos sur les utilisateurs
 pub async fn get_leaderboard_cards(
     search_query: String,
     sort_method: LeaderboardSortMethod,
@@ -140,6 +145,8 @@ pub async fn get_leaderboard_cards(
     Ok(cards)
 }
 
+/// Recherche un utilisateur dans la database
+/// Retourne une liste de `USER_PAGE_SIZE` utilisateurs qui correspondent à la recherche
 pub async fn search_user(search_query: &str) -> Result<Vec<UserSearchItem>, ServerFnError> {
     let db = get().await;
 
@@ -155,6 +162,7 @@ pub async fn search_user(search_query: &str) -> Result<Vec<UserSearchItem>, Serv
     Ok(items)
 }
 
+/// Retourne le classement à partir de l'elo, il n'y a que besoin de l'elo
 pub async fn get_elo_rank(elo: u64) -> Result<u64, ServerFnError> {
     let db = get().await;
     let higher_count: Option<u64> = db
@@ -169,6 +177,8 @@ pub async fn get_elo_rank(elo: u64) -> Result<u64, ServerFnError> {
     ))
 }
 
+/// Enregistre une partie dans la base de donnée
+/// oups je crois que c'est exactement la même description que l'API function
 pub async fn register_game(
     user_id: UserId,
     sent_game: GameSendItem,
@@ -241,6 +251,8 @@ pub async fn register_game(
     Ok(Ok(()))
 }
 
+/// Vérifie si un utilisateur à rentrée une partie récemment
+/// Pour éviter les spams
 async fn get_recent_game(user_id: &UserId) -> Result<Option<GameRecord>, ServerFnError> {
     let db = get().await;
 
@@ -260,6 +272,8 @@ async fn get_recent_game(user_id: &UserId) -> Result<Option<GameRecord>, ServerF
     Ok(recent_game)
 }
 
+/// Associe à chaque nom d'utilisateur son `user_id` et son `elo`
+/// Pour le calcul d'elo par la suite
 async fn map_usernames(
     left_team: Vec<String>,
     right_team: Vec<String>,
@@ -292,6 +306,7 @@ async fn map_usernames(
     Ok(Ok([left_team_users, right_team_users]))
 }
 
+/// Récupère l'historique des parties
 pub async fn get_game_history(
     user_id: UserId,
     current_page: u64,
@@ -323,6 +338,8 @@ pub async fn get_game_history(
     Ok(history)
 }
 
+/// Alors là y'a 160 lignes d'implémention du trait qui permet de récupérer des structs directement depuis la database
+/// C'est absolument pas intéressant mais c'est nécessaire...
 impl SurrealValue for LeaderboardUserCard {
     fn kind_of() -> Kind {
         Kind::Any

@@ -1,12 +1,7 @@
 use dioxus::document;
 
+/// Créé une jolie date à partir d'un UNIX time
 pub fn format_date(secs: u64) -> String {
-    // 1. Time of day
-    // let seconds_in_day = secs % 86400;
-    // let hours = seconds_in_day / 3600;
-    // let minutes = (seconds_in_day % 3600) / 60;
-    // let seconds = seconds_in_day % 60;
-
     // 2. Days since 1970-01-01
     let days = (secs / 86400) as i64;
 
@@ -25,6 +20,8 @@ pub fn format_date(secs: u64) -> String {
     // format!("{day:02}/{month:02}/{year} à {hours:02}:{minutes:02}")
     format!("{day:02}/{month:02}/{year}")
 }
+
+/// Créé une jolie date ET heure à partir d'un UNIX time
 pub fn format_date_and_hour(secs: u64) -> String {
     // 1. Time of day
     let seconds_in_day = secs % 86400;
@@ -49,6 +46,7 @@ pub fn format_date_and_hour(secs: u64) -> String {
     format!("{day:02}/{month:02}/{year} à {hours:02}:{minutes:02}")
 }
 
+/// Helper absolument immonde il faut que je rajoute une lib de timer plus tard
 pub async fn sleep_ms(millis: u32) {
     // HORRENDOUS call to JS for wait helper
     // TODO fix later

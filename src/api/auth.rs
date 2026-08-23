@@ -1,6 +1,7 @@
 use dioxus::prelude::*;
 
-/// Login Server Function
+/// Demande de login
+/// (j'ai précédemment fait la doc interne en anglais et j'ai la flemme de la traduire)
 #[server]
 pub async fn login(email: String, password: String) -> Result<Result<(), String>, ServerFnError> {
     use crate::server::auth;
@@ -47,7 +48,7 @@ pub async fn login(email: String, password: String) -> Result<Result<(), String>
     }
 }
 
-/// Logout Server Function
+/// Demande de logout
 #[server]
 pub async fn logout() -> Result<(), ServerFnError> {
     use crate::server::auth;
@@ -55,6 +56,7 @@ pub async fn logout() -> Result<(), ServerFnError> {
     auth::cookie::clear_from_response()
 }
 
+/// Demande pour changer le nom d'utilisateur
 #[server]
 pub async fn change_username(
     new_username: String,
@@ -69,6 +71,7 @@ pub async fn change_username(
     auth::account::change_username(&session_record.user_id, &new_username, &password).await
 }
 
+/// Demande pour changer de mot de passe
 #[server]
 pub async fn change_password(
     old_password: String,
