@@ -14,7 +14,7 @@ build-and-push:
   before_script:
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
     - docker context create tls-env
-    - docker buildx create --use --name ci-builder
+    - docker buildx create --name ci-builder --use tls-env
     - docker buildx inspect --bootstrap
   script:
   script:
