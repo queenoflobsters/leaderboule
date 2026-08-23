@@ -5,7 +5,9 @@ Classement et système d'Elo pour le club de pétanque de l'INSA de Lyon
 
 ## Comment exécuter
 
-- Écrire un fichier `.env` contenant les variables d'environnement suivantes :
+Les variables d'environnement suivantes doivent être accessibles
+
+Soit présentes dans un `.env` soit setup depuis la CI/CD pipeline
 
 ```bash
 # Pour la databse
@@ -20,6 +22,7 @@ SERVER_HOST="..."
 SERVER_USER="..."
 SSH_PRIVATE_KEY="..."
 ```
+
 
 ### Développement
 
@@ -40,6 +43,25 @@ dx serve --release # Pour maximum de perfs
 ```
 
 La database sera stockée dans `./boules.db`
+
+### Comment bootstrap le server
+
+(Pas nécéssaire finalement)
+
+- On your computer
+```bash
+ssh-keygen -t ed25519 -C "gitlab-deploy" -f ./gitlab_deploy_key -N ""
+```
+
+- On the server
+```
+mkdir -p ~/.ssh
+echo "PASTE_THE_COPIED_PUBLIC_KEY_HERE" >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+chmod 700 ~/.ssh
+```
+
+- Copier la clé privée dans une variable d'env CI/CD
 
 ### Avec Docker
 
