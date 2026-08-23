@@ -17,10 +17,6 @@ DATABASE_PASS="root"
 # Pour l'intégration avec Helloasso
 HELLOASSO_CLIENT_ID="..." 
 HELLOASSO_CLIENT_SECRET="..."
-# Seulement nécéssaire pour le déployement
-SERVER_HOST="..."
-SERVER_USER="..."
-SSH_PRIVATE_KEY="..."
 ```
 
 

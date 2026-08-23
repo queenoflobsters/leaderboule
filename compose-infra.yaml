@@ -1,0 +1,88 @@
+services:
+  # -------------------------------------------------------------
+  # Leaderboule - Dioxus Application
+  # -------------------------------------------------------------
+  leaderboule-app:
+    image: registry.gitlab.com/sia-insa-lyon/va/petanque-insa-club:latest
+    init: true
+    pull_policy: always
+    restart: always
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik-network"
+      - "traefik.http.routers.leaderboule-app.rule=Host(`${HOST}`)"
+      - "traefik.http.routers.leaderboule-app.tls.certresolver=httpchallenge"
+      # Dockerfile exposes port 8080, Traefik must forward to 8080:
+      - "traefik.http.services.leaderboule-app.loadbalancer.server.port=8080"
+    environment:
+      # Database connection
+      DATABASE_URL: leaderboule-db:8000
+      DATABASE_USER: ${DATABASE_USER}
+      DATABASE_PASS: ${DATABASE_PASS}
+      # Helloasso API Interaction
+      HELLOASSO_CLIENT_ID: ${HELLOASSO_CLIENT_ID}
+      HELLOASSO_CLIENT_SECRET: ${HELLOASSO_CLIENT_SECRET}
+      # App runtime settings
+      PORT: 8080
+      IP: 0.0.0.0 # Exposes 
+      TZ: Europe/Paris
+    networks:
+      - traefik-network
+      - leaderboule-network
+    depends_on:
+      leaderboule-db:
+        condition: service_healthy
+
+  # -------------------------------------------------------------
+  # SurrealDB Database
+  # -------------------------------------------------------------
+  leaderboule-db:
+    image: surrealdb/surrealdb:v3.0.0
+    user: root
+    command: start --bind 0.0.0.0:8000 rocksdb:/data/boules.db
+    restart: always
+    pull_policy: if_not_present
+    # Exposes database for remote access with Surrealist software
+    # I'm doing this to moderate the database when in need
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik-network"
+      - "traefik.http.routers.leaderboule-db.rule=Host(`db.${HOST}`)"
+      - "traefik.http.routers.leaderboule-db.tls.certresolver=httpchallenge"
+      - "traefik.http.services.leaderboule-db.loadbalancer.server.port=8000"
+    environment:
+      SURREAL_USER: ${DATABASE_USER}
+      SURREAL_PASS: ${DATABASE_PASS}
+      TZ: Europe/Paris
+    volumes:
+      - leaderboule-data:/data:z
+    networks:
+      - traefik-network
+      - leaderboule-network
+    healthcheck:
+      test: ["CMD", "/surreal", "is-ready"]
+      start_period: 2s
+      interval: 3s
+      timeout: 3s
+      retries: 5
+
+# -------------------------------------------------------------
+# Networks
+# -------------------------------------------------------------
+networks:
+  # External network
+  traefik-network:
+    name: traefik-network
+    external: true
+
+  # Bridge betwen App and Database
+  leaderboule-network:
+    name: leaderboule-network
+    external: false
+
+# -------------------------------------------------------------
+# Persistent Data Volumes
+# -------------------------------------------------------------
+volumes:
+  leaderboule-data:
+    name: leaderboule-data
