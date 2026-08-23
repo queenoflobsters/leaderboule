@@ -21,7 +21,7 @@ use crate::{
 };
 
 pub static DB: OnceCell<Surreal<Client>> = OnceCell::const_new();
-const INIT_SQL: &'static str = include_str!("../../db_init.sql");
+const INIT_SQL: &'static str = include_str!("../init.sql");
 const USER_PAGE_SIZE: u64 = 8;
 const GAME_PAGE_SIZE: u64 = 5;
 const GAME_REGISTRY_COOLDOWN: u64 = 15 * 60;
