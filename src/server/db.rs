@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use surrealdb::{
     engine::remote::ws::{Client, Ws},
     opt::auth::Root,
-    types::{RecordId, SurrealValue, Uuid},
+    types::{Kind, RecordId, SurrealValue, Uuid, Value},
     Surreal,
 };
 use tokio::sync::OnceCell;
@@ -11,7 +11,9 @@ use tokio::sync::OnceCell;
 use crate::{
     api::db::{
         current_user::{GameSearchItem, UserProfile},
-        global::{GameSendItem, LeaderboardSortMethod, LeaderboardUserCard, UserSearchItem},
+        global::{
+            GameSendItem, LeaderboardSortMethod, LeaderboardUserCard, PlayerGameLog, UserSearchItem,
+        },
     },
     server::{
         auth::UserId,
@@ -303,8 +305,8 @@ pub async fn get_game_history(
                 won_score,
                 lost_score,
                 played_at,
-                players[WHERE won = true].{ username: id.username, elo: elo_change } AS won_players,
-                players[WHERE won = false].{ username: id.username, elo: elo_change } AS lost_players
+                players[WHERE won = true].{ username: id.username, elo_change } AS won_players,
+                players[WHERE won = false].{ username: id.username, elo_change } AS lost_players
             FROM game
             WHERE players.*.id CONTAINS $user_id
             ORDER BY played_at DESC
@@ -322,20 +324,18 @@ pub async fn get_game_history(
 }
 
 impl SurrealValue for LeaderboardUserCard {
-    fn kind_of() -> surrealdb::types::Kind {
-        surrealdb::types::Kind::Any
+    fn kind_of() -> Kind {
+        Kind::Any
     }
 
-    fn into_value(self) -> surrealdb::types::Value {
+    fn into_value(self) -> Value {
         panic!("You should never write a LeaderboardUserCard into the database");
     }
 
-    fn from_value(value: surrealdb::types::Value) -> Result<Self, surrealdb::Error>
+    fn from_value(value: Value) -> Result<Self, surrealdb::Error>
     where
         Self: Sized,
     {
-        use surrealdb::types::{SurrealValue, Value};
-
         match value {
             Value::Object(mut obj) => Ok(Self {
                 username: SurrealValue::from_value(obj.remove("username").unwrap_or(Value::None))?,
@@ -360,20 +360,18 @@ impl SurrealValue for LeaderboardUserCard {
     }
 }
 impl SurrealValue for UserProfile {
-    fn kind_of() -> surrealdb::types::Kind {
-        surrealdb::types::Kind::Any
+    fn kind_of() -> Kind {
+        Kind::Any
     }
 
-    fn into_value(self) -> surrealdb::types::Value {
+    fn into_value(self) -> Value {
         panic!("You should never write a UserProfile into the database");
     }
 
-    fn from_value(value: surrealdb::types::Value) -> Result<Self, surrealdb::Error>
+    fn from_value(value: Value) -> Result<Self, surrealdb::Error>
     where
         Self: Sized,
     {
-        use surrealdb::types::{SurrealValue, Value};
-
         match value {
             Value::Object(mut obj) => Ok(Self {
                 email: SurrealValue::from_value(obj.remove("email").unwrap_or(Value::None))?,
@@ -403,20 +401,18 @@ impl SurrealValue for UserProfile {
 }
 
 impl SurrealValue for UserSearchItem {
-    fn kind_of() -> surrealdb::types::Kind {
-        surrealdb::types::Kind::Any
+    fn kind_of() -> Kind {
+        Kind::Any
     }
 
-    fn into_value(self) -> surrealdb::types::Value {
+    fn into_value(self) -> Value {
         panic!("You should never write a UserSearchItem into the database");
     }
 
-    fn from_value(value: surrealdb::types::Value) -> Result<Self, surrealdb::Error>
+    fn from_value(value: Value) -> Result<Self, surrealdb::Error>
     where
         Self: Sized,
     {
-        use surrealdb::types::{SurrealValue, Value};
-
         match value {
             Value::Object(mut obj) => Ok(Self {
                 username: SurrealValue::from_value(obj.remove("username").unwrap_or(Value::None))?,
@@ -426,21 +422,43 @@ impl SurrealValue for UserSearchItem {
         }
     }
 }
-impl SurrealValue for GameSearchItem {
-    fn kind_of() -> surrealdb::types::Kind {
-        surrealdb::types::Kind::Any
+impl SurrealValue for PlayerGameLog {
+    fn kind_of() -> Kind {
+        Kind::Any
     }
 
-    fn into_value(self) -> surrealdb::types::Value {
-        panic!("You should never write a GameSearchItem into the database");
+    fn into_value(self) -> Value {
+        panic!("You should never write a UserGameLog into the database");
     }
 
-    fn from_value(value: surrealdb::types::Value) -> Result<Self, surrealdb::Error>
+    fn from_value(value: Value) -> Result<Self, surrealdb::Error>
     where
         Self: Sized,
     {
-        use surrealdb::types::{SurrealValue, Value};
+        match value {
+            Value::Object(mut obj) => Ok(Self {
+                username: SurrealValue::from_value(obj.remove("username").unwrap_or(Value::None))?,
+                elo_change: SurrealValue::from_value(
+                    obj.remove("elo_change").unwrap_or(Value::None),
+                )?,
+            }),
+            other => <()>::from_value(other).map(|_| unreachable!()),
+        }
+    }
+}
+impl SurrealValue for GameSearchItem {
+    fn kind_of() -> Kind {
+        Kind::Any
+    }
 
+    fn into_value(self) -> Value {
+        panic!("You should never write a GameSearchItem into the database");
+    }
+
+    fn from_value(value: Value) -> Result<Self, surrealdb::Error>
+    where
+        Self: Sized,
+    {
         match value {
             Value::Object(mut obj) => Ok(Self {
                 elo_change: SurrealValue::from_value(

@@ -3,9 +3,8 @@ use serde::{Deserialize, Serialize};
 
 pub mod current_user {
 
-
     use super::*;
-    use crate::api::db::global::UserSearchItem;
+    use crate::api::db::global::PlayerGameLog;
 
     /// User database model
     #[derive(Serialize, Deserialize, Clone, Default, PartialEq)]
@@ -66,8 +65,8 @@ pub mod current_user {
         pub elo_change: i64,
         pub won_score: u64,
         pub lost_score: u64,
-        pub won_players: Vec<UserSearchItem>,
-        pub lost_players: Vec<UserSearchItem>,
+        pub won_players: Vec<PlayerGameLog>,
+        pub lost_players: Vec<PlayerGameLog>,
         pub played_at: u64,
     }
 
@@ -122,7 +121,12 @@ pub mod global {
     #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
     pub struct UserSearchItem {
         pub username: String,
-        pub elo: i64,
+        pub elo: u64,
+    }
+    #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+    pub struct PlayerGameLog {
+        pub username: String,
+        pub elo_change: i64,
     }
 
     #[server]

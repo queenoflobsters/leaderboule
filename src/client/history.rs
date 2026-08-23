@@ -59,8 +59,16 @@ fn GameList(current_page: ReadSignal<u64>) -> Element {
 #[component]
 fn GameCard(game: GameSearchItem) -> Element {
     let played_at_str = utils::format_date_and_hour(game.played_at);
-    let self_elo_change_class = if game.elo_change > 0 { "elo-gain" } else { "elo-loss" };
-    let self_elo_change_icon = if game.elo_change > 0 { &ARROW_UP_SVG } else { &ARROW_DOWN_SVG };
+    let self_elo_change_class = if game.elo_change > 0 {
+        "elo-gain"
+    } else {
+        "elo-loss"
+    };
+    let self_elo_change_icon = if game.elo_change > 0 {
+        &ARROW_UP_SVG
+    } else {
+        &ARROW_DOWN_SVG
+    };
 
     rsx! {
         div { class: "game-card",
@@ -84,7 +92,7 @@ fn GameCard(game: GameSearchItem) -> Element {
                             div { "{p.username}" }
                             div { class: "players-elo-change elo-gain",
                                 img { class: "players-elo-change-icons", src: ARROW_UP_SVG}
-                                "{p.elo}"
+                                "{p.elo_change}"
                             }
                         }
                     }}
@@ -97,7 +105,7 @@ fn GameCard(game: GameSearchItem) -> Element {
                             div {  "{p.username}" }
                             div { class: "players-elo-change elo-loss",
                                 img { class: "players-elo-change-icons", src: ARROW_DOWN_SVG}
-                                "{p.elo}"
+                                "{p.elo_change}"
                             }
                         }
                     }}

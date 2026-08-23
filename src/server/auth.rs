@@ -319,9 +319,6 @@ pub mod middleware {
 }
 
 pub mod account {
-
-    use crate::server::auth::credentials::verify_password_validity;
-
     use super::*;
 
     /// Returns the user id
