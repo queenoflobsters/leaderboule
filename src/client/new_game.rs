@@ -147,7 +147,8 @@ fn PlayerSelector() -> Element {
             task.cancel();
         }
         let task = spawn(async move {
-            utils::sleep_ms(300).await;
+            #[cfg(target_arch = "wasm32")]
+            gloo_timers::future::TimeoutFuture::new(300).await;
             search_query.set(new_val);
         });
         debounce_task.set(Some(task));

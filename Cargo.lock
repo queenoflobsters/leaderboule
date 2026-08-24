@@ -3055,6 +3055,7 @@ dependencies = [
  "argon2",
  "dioxus",
  "dotenvy",
+ "gloo-timers",
  "reqwest 0.13.4",
  "serde",
  "surrealdb",

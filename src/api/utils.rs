@@ -46,12 +46,3 @@ pub fn format_date_and_hour(secs: u64) -> String {
     format!("{day:02}/{month:02}/{year} à {hours:02}:{minutes:02}")
 }
 
-/// Helper absolument immonde il faut que je rajoute une lib de timer plus tard
-pub async fn sleep_ms(millis: u32) {
-    // HORRENDOUS call to JS for wait helper
-    // TODO fix later
-    let _ = document::eval(&format!(
-        "await new Promise(resolve => setTimeout(resolve, {millis}));"
-    ))
-    .await;
-}

@@ -72,7 +72,8 @@ fn Banner(
             task.cancel();
         }
         let task = spawn(async move {
-            utils::sleep_ms(300).await;
+            #[cfg(target_arch = "wasm32")]
+            gloo_timers::future::TimeoutFuture::new(300).await;
             on_search.call(new_val);
         });
         debounce_task.set(Some(task));

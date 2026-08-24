@@ -8,7 +8,8 @@ pub fn PageNotFound(segments: Vec<String>) -> Element {
     use_future(move || async move {
         loop {
             filler.write().push_str("404 ");
-            utils::sleep_ms(30).await;
+            #[cfg(target_arch = "wasm32")]
+            gloo_timers::future::TimeoutFuture::new(50).await;
         }
     });
     rsx! {
