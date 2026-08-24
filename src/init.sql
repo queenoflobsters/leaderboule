@@ -3,14 +3,14 @@ DEFINE TABLE IF NOT EXISTS user;
 
 -- email field constraints
 DEFINE FIELD IF NOT EXISTS email ON TABLE user
-    TYPE string
     VALUE string::trim($value)
+    TYPE string
     ASSERT string::is_email($value);
 
 -- username field constraints
 DEFINE FIELD IF NOT EXISTS username ON TABLE user 
-    TYPE string 
     VALUE string::trim($value) 
+    TYPE string 
     ASSERT string::len($value) >= 3 AND string::len($value) <= 32;
 
 -- elo constraint (must be >= 0)
