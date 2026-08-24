@@ -14,7 +14,6 @@ services:
       # # Switch cert resolver when local
       # - "traefik.http.routers.leaderboule-app.tls=true"
       - "traefik.http.routers.leaderboule-app.tls.certresolver=httpchallenge"
-      # # Dockerfile exposes port 8080, Traefik must forward to 8080:
       - "traefik.http.services.leaderboule-app.loadbalancer.server.port=8080"
     environment:
       # Database connection
@@ -36,15 +35,28 @@ services:
         condition: service_healthy
 
   # -------------------------------------------------------------
-  # SurrealDB Database
+  # Database initializer
+  # (J'ai pas trouvé une meilleure manière de faire ça...)
+  # -------------------------------------------------------------
+  init-db-volume:
+    image: alpine:latest
+    # Starts as root
+    user: root
+    # Give the db container perms to write in it
+    command: chown -R 65532:65532 /data
+    volumes:
+      - leaderboule-data:/data:z
+    # Does that only once at the start
+    restart: "no"
+
+  # -------------------------------------------------------------
+  # Actual SurrealDB Database
   # -------------------------------------------------------------
   leaderboule-db:
     image: surrealdb/surrealdb:v3.2.0
-    # # This is a problem but it doesn't work without it 
-    user: root
     # # traditionnal rocksdb backend
     # command: start --bind 0.0.0.0:8000 rocksdb:/data/boules.db
-    # # surrealkv backend instead (pure Rust) instead of rocksdb
+    # # surrealkv backend instead (pure Rust)
     command: start --bind 0.0.0.0:8000 surrealkv:/data/boules.db
     restart: always
     pull_policy: if_not_present
@@ -53,6 +65,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik-network"
+      # /!\ I need to know if this will work /!\
       - "traefik.http.routers.leaderboule-db.rule=Host(`db.${HOST}`)"
       # # Switch cert resolver when local
       # - "traefik.http.routers.leaderboule-db.tls=true"
@@ -67,11 +80,14 @@ services:
     networks:
       - traefik-network
       - leaderboule-network
+    depends_on:
+      init-db-volume:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "/surreal", "is-ready"]
-      start_period: 2s
-      interval: 3s
-      timeout: 3s
+      start_period: 1s
+      interval: 5s
+      timeout: 1s
       retries: 5
 
 # -------------------------------------------------------------
