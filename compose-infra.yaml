@@ -11,8 +11,9 @@ services:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik-network"
       - "traefik.http.routers.leaderboule-app.rule=Host(`${HOST}`)"
-      - "traefik.http.routers.leaderboule-app.tls=true"
-      # - "traefik.http.routers.leaderboule-app.tls.certresolver=httpchallenge"
+      # # Switch cert resolver when local
+      # - "traefik.http.routers.leaderboule-app.tls=true"
+      - "traefik.http.routers.leaderboule-app.tls.certresolver=httpchallenge"
       # # Dockerfile exposes port 8080, Traefik must forward to 8080:
       - "traefik.http.services.leaderboule-app.loadbalancer.server.port=8080"
     environment:
@@ -38,12 +39,10 @@ services:
   # SurrealDB Database
   # -------------------------------------------------------------
   leaderboule-db:
-    image: surrealdb/surrealdb:v3.0.0
-    # This is a problem but it doesn't work without it 
+    image: surrealdb/surrealdb:v3.2.0
+    # # This is a problem but it doesn't work without it 
     user: root
-    # # Disables SELinux
-    # security_opt:
-    #   - label:disable
+    # # traditionnal rocksdb backend
     # command: start --bind 0.0.0.0:8000 rocksdb:/data/boules.db
     # # surrealkv backend instead (pure Rust) instead of rocksdb
     command: start --bind 0.0.0.0:8000 surrealkv:/data/boules.db
@@ -55,8 +54,9 @@ services:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik-network"
       - "traefik.http.routers.leaderboule-db.rule=Host(`db.${HOST}`)"
-      - "traefik.http.routers.leaderboule-db.tls=true"
-      # - "traefik.http.routers.leaderboule-db.tls.certresolver=httpchallenge"
+      # # Switch cert resolver when local
+      # - "traefik.http.routers.leaderboule-db.tls=true"
+      - "traefik.http.routers.leaderboule-db.tls.certresolver=httpchallenge"
       - "traefik.http.services.leaderboule-db.loadbalancer.server.port=8000"
     environment:
       SURREAL_USER: ${DATABASE_USER}
