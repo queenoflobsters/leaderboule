@@ -9,5 +9,4 @@ boules.db
 **/*.rs.bk
 
 # Utils
-cp_mv.sh
 src_txt
