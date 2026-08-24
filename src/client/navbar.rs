@@ -2,6 +2,7 @@ use crate::{api::db::current_user, client::route::Route};
 use dioxus::prelude::*;
 
 const NAVBAR_CSS: Asset = asset!("assets/style/navbar.css");
+const MAIN_CSS: Asset = asset!("assets/style/main.css");
 const HAMBURGER_SVG: Asset = asset!("assets/icons/hamburger.svg");
 const LEADERBOARD_SVG: Asset = asset!("assets/icons/leaderboard.svg");
 const ACCOUNT_SVG: Asset = asset!("assets/icons/account.svg");
@@ -31,6 +32,7 @@ pub fn Navbar() -> Element {
     };
 
     rsx! {
+            document::Stylesheet { href: MAIN_CSS }
             document::Stylesheet { href: NAVBAR_CSS }
 
             // Top bar fixed at top
@@ -40,52 +42,51 @@ pub fn Navbar() -> Element {
                     aria_label: "Open menu",
                     onclick: move |_| is_open.toggle(),
                     img {
+                        style: "width: 1.75rem; height: 1.75rem;",
                         src: HAMBURGER_SVG,
-                        width: 28,
-                        height: 28,
                         alt: "Menu",
                     }
                 }
-                div { class: "current-route-title", {current_route.title()} }
+                div { {current_route.title()} }
             }
 
             // Sliding Sidebar
             { if is_open() { rsx! {
 
                 nav { class: "sidebar",
-                    div { class: "routes-container normal-routes",
+                    div { class: "links-container normal-routes",
                         Link {
-                            class: "route-entry",
+                            class: "link-entry",
                             to: Route::Leaderboard {},
                             active_class: "active-route",
                             onclick: on_link_click,
-                            img { class: "route-icon", src: LEADERBOARD_SVG, }
+                            img { class: "icon", src: LEADERBOARD_SVG, }
                             {Route::Leaderboard.title()}
                         }
                         Link {
-                            class: "route-entry",
+                            class: "link-entry",
                             to: Route::NewGame {},
                             active_class: "active-route",
                             onclick: on_link_click,
-                            img { class: "route-icon", src: PEN_SVG, }
+                            img { class: "icon", src: PEN_SVG, }
                             {Route::NewGame.title()}
                         }
                         Link {
-                            class: "route-entry",
+                            class: "link-entry",
                             to: Route::History {},
                             active_class: "active-route",
                             onclick: on_link_click,
-                            img { class: "route-icon", src: BOOK_SVG, }
+                            img { class: "icon", src: BOOK_SVG, }
                             {Route::History.title()}
                         }
                     }
-                    div { class: "routes-container account-route",
+                    div { class: "links-container account-route",
                         Link {
-                            class: "route-entry",
+                            class: "link-entry",
                             to: Route::Account {},
                             active_class: "active-route",
                             onclick: on_link_click,
-                            img { class: "route-icon", src: ACCOUNT_SVG, }
+                            img { class: "icon", src: ACCOUNT_SVG, }
                             {username}
                         }
                     }

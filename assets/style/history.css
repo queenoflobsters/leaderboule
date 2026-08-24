@@ -1,35 +1,29 @@
 /* GLOBAL CONTAINER */
 .history-container {
   width: 28rem;
-  max-width: 100%;
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
   gap: 1rem;
 }
 
-
 /* GAME CARD */
 .game-card {
-  border: 0.15rem solid #555;
-  border-radius: 0.4rem;
+  border: var(--lambda-border);
+  border-radius: var(--lambda-border-radius);
   overflow: hidden;
 }
 
-.elo-gain {
+
+.elo {
   display: inline-flex;
   font-weight: bold;
   align-items: center;
-  color: #0ecc08;
-  filter: drop-shadow(0 0 0.35rem color-mix(in srgb, currentColor 75%, transparent));
 }
 
-.elo-loss {
-  display: inline-flex;
-  font-weight: bold;
-  align-items: center;
-  color: #fc2a2e;
-  filter: drop-shadow(0 0 0.35rem color-mix(in srgb, currentColor 75%, transparent));
+.gain {
+  color: var(--elo-gain-color);
+}
+
+.loss {
+  color: var(--elo-loss-color);
 }
 
 
@@ -37,7 +31,7 @@
 .game-card-banner {
   display: grid;
   gap: 0.5rem;
-  background-color: #222;
+  background-color: var(--button-bg-color);
   padding: 0.5rem 1rem;
   grid-template-columns: 1fr 1fr;
 }
@@ -46,10 +40,6 @@
   font-size: 1.4rem;
 }
 
-.game-card-elo-change-icon {
-  height: 2rem;
-  width: 2rem;
-}
 
 .game-card-score {
   justify-self: right;
@@ -82,24 +72,13 @@
   justify-content: right;
 }
 
-.players-elo-change-icons {
-  width: 1.4em;
-  height: 1.4em;
-}
 
 .players-list-separator {
   border: none;
-  border-radius: 0.4rem;
+  border-radius: var(--lambda-border-radius);
   height: 0.15rem;
-  background-color: #555;
+  background-color: var(--lambda-border-color);
   margin: 0.1rem 0;
   width: 100%;
 }
 
-/* .players-entry.won { */
-  /* color: #0e98f4; */
-/* } */
-
-/* .players-entry.lost { */
-  /* color: #f45053; */
-/* } */

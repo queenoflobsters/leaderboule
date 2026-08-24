@@ -108,6 +108,7 @@ pub fn compute_changes(
 }
 
 /// Calcule la variation d'elo
+#[allow(unused)] // TODO REMOVE
 fn compute_user_new_elo(
     this_elo: u64,
     this_score: u64,

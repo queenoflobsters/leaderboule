@@ -47,7 +47,7 @@ pub fn Account() -> Element {
     rsx! {
             document::Stylesheet { href: ACCOUNT_CSS }
 
-            div { class: "account-container",
+            div { class: "account-container route-container",
                 AccountTitle { username: &profile.username, member_since: profile.member_since }
                 ProfileStats { profile: profile.clone() }
 
@@ -80,39 +80,39 @@ fn ProfileStats(profile: UserProfile) -> Element {
     rsx! {
         div { class: "profile-container",
             span { class: "primary-stat",
-                span { class: "primary-stat-title", "Elo"}
-                span { class: "stat-elo", "{profile.elo}"}
+                span { class: "stat-title", "Elo"}
+                span { class: "stat-elo cool-glow", "{profile.elo}"}
             }
             span { class: "secondary-stat",
-                "Record  "
-                span { class: "stat-elo", "{profile.best_elo}"}
+                span { class: "stat-title", "Record  "}
+                span { class: "stat-elo cool-glow", "{profile.best_elo}"}
             }
             span { class: "secondary-stat",
-                "Classement"
-                img { class: "stat-rank stat-icon-profile", src: HASH_SVG }
-                span { class: "stat-rank", "{profile.rank.unwrap_or(0)}" }
+                span { class: "stat-title", "Classement"}
+                img { class: "stat-rank cool-glow icon", src: HASH_SVG }
+                span { class: "stat-rank cool-glow", "{profile.rank.unwrap_or(0)}" }
             }
         }
         div { class: "profile-container",
             span { class: "primary-stat",
-                span { class: "primary-stat-title", "Parties jouées" }
-                img { class: "stat-icon-profile stat-games-played", src: TOTAL_SVG }
-                span { class : "stat-games-played", "{profile.games_played}" }
+                span { class: "stat-title", "Parties jouées" }
+                img { class: "icon stat-games-played cool-glow", src: TOTAL_SVG }
+                span { class : "stat-games-played cool-glow", "{profile.games_played}" }
             }
             span { class: "secondary-stat",
-                "Gagnées"
-                img { class: "stat-icon-profile stat-games-won", src: TROPHY_SVG }
-                span { class: "stat-games-won", "{profile.games_won}" }
+                span { class: "stat-title", "Gagnées"}
+                img { class: "icon stat-games-won cool-glow", src: TROPHY_SVG }
+                span { class: "stat-games-won cool-glow", "{profile.games_won}" }
             }
             span { class: "secondary-stat",
-                "Perdues"
-                img { class: "stat-icon-profile stat-games-lost", src: BROKEN_HEART_SVG }
-                span { class: "stat-games-lost", "{profile.games_lost}" }
+                span { class: "stat-title", "Perdues"}
+                img { class: "icon stat-games-lost cool-glow", src: BROKEN_HEART_SVG }
+                span { class: "stat-games-lost cool-glow", "{profile.games_lost}" }
             }
             span { class: "secondary-stat",
-                "Ratio"
-                img { class: "stat-icon-profile stat-win-ratio", src: PERCENT_SVG }
-                span { class: "stat-win-ratio", "{profile.win_ratio:.1}" }
+                span { class: "stat-title", "Ratio"}
+                img { class: "icon stat-win-ratio cool-glow", src: PERCENT_SVG }
+                span { class: "stat-win-ratio cool-glow", "{profile.win_ratio:.1}" }
             }
         }
     }

@@ -40,7 +40,7 @@ pub fn Login() -> Element {
     rsx! {
         document::Stylesheet { href : LOGIN_CSS }
 
-        div { class: "login-outer-container",
+        div { class: "login-outer-container route-container",
             h1 { "Leaderboule" }
             div { class: "login-inner-container",
                 p { "C'est ma première connexion :" }
@@ -91,7 +91,7 @@ pub fn Login() -> Element {
                     div { class: "forgotten-password",
                         span { "Si vous avez oublié ou perdu votre mot de passe, envoyez un mail à " }
                         span { class: "petanque-email", "petanquinsaclub@asso-insa-lyon.fr"}
-                        span { " depuis votre adresse mail d'adhérent, avec simplement comme objet \" Mot de passe oublié \" et on s'occupera de tout !"}
+                        span { " depuis votre adresse mail d'adhérent Helloasso, avec simplement comme objet \" Mot de passe oublié \" et on s'occupera de tout !"}
                     }
                 }
             }

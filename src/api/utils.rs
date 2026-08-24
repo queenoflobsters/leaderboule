@@ -1,5 +1,3 @@
-use dioxus::document;
-
 /// Créé une jolie date à partir d'un UNIX time
 pub fn format_date(secs: u64) -> String {
     // 2. Days since 1970-01-01

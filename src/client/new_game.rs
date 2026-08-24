@@ -1,9 +1,12 @@
+///
+use crate::{
+    api::db::{
+        self,
+        global::{self, GameSendItem, UserSearchItem},
+    },
+    client::route::Route,
+};
 use dioxus::{core::Task, prelude::*};
-
-use crate::{api::{
-    db::{self, global::{self, GameSendItem, UserSearchItem}},
-    utils,
-}, client::route::Route};
 
 const NEW_GAME_CSS: Asset = asset!("assets/style/new_game.css");
 const MINUS_SVG: Asset = asset!("assets/icons/minus.svg");
@@ -63,7 +66,7 @@ pub fn NewGame() -> Element {
 
     rsx! {
         document::Stylesheet { href : NEW_GAME_CSS }
-        div { class: "new-game-container",
+        div { class: "new-game-container route-container",
             div { class: "team-entry-container",
                 TeamEntry { title: left_title,
                      score: left_score,
@@ -109,7 +112,7 @@ fn ScoreInput() -> Element {
         div { class: "score-input",
             button { class: "score-input-buttons",
                 onclick: move |_| if score().0 > 0 { score.set(TeamScore(score().0 - 1)) },
-                img { class: "score-input-icon", src: MINUS_SVG}
+                img { class: "icon", src: MINUS_SVG}
             }
             input { class: "score-input-field",
                 r#type: "text",
@@ -130,7 +133,7 @@ fn ScoreInput() -> Element {
             }
             button { class: "score-input-button",
                 onclick: move |_| if score().0 < 13 { score.set(TeamScore(score().0 + 1)) },
-                img { class: "score-input-icon", src: PLUS_SVG}
+                img { class: "icon", src: PLUS_SVG}
             }
 
         }
@@ -164,7 +167,7 @@ fn PlayerSelector() -> Element {
                 }
                 button { class: "player-selector-clear",
                     onclick: move |_| search_query.set(String::new()),
-                    img { class: "player-selector-clear-icon", src: CLOSE_SVG}
+                    img { class: "icon", src: CLOSE_SVG}
 
                 }
 
@@ -200,9 +203,10 @@ fn PlayerSearchBox(search_query: ReadSignal<String>, reset_query: EventHandler<(
     let on_player_click = move |item: UserSearchItem| {
         move |_| {
             if team_members.read().0.contains(&item) {
-                error_msg.set(ErrorMsg(
-                    format!("{} ne peut pas se dupliquer", item.username),
-                ));
+                error_msg.set(ErrorMsg(format!(
+                    "{} ne peut pas se dupliquer",
+                    item.username
+                )));
             } else {
                 team_members.write().0.push(item.clone());
                 reset_query(());
@@ -244,7 +248,7 @@ fn UserSearchCard(item: UserSearchItem, on_click: EventHandler<MouseEvent>) -> E
             div { class: "user-search-card-username",
                 "{item.username}"
             }
-            div { class: "user-search-card-elo",
+            div { class: "user-search-card-elo cool-glow",
                 "{item.elo}"
             }
         }
@@ -264,7 +268,7 @@ fn SelectedPlayersBox() -> Element {
                     }
                     button { class: "selected-player-remove-button",
                         onclick: move |_| _ = team_members.write().0.remove(i),
-                        img { class: "player-remove-icon", src: CLOSE_SVG}
+                        img { class: "icon", src: CLOSE_SVG}
                     }
                 }
             }}}
@@ -277,4 +281,3 @@ fn SelectedPlayersBox() -> Element {
         }
     }
 }
-

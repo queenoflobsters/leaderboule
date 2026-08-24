@@ -3,6 +3,9 @@
 /// Puis franchement j'ai trop la flemme
 ///
 
+/// Les composants
+pub mod components;
+
 /// Gêrant le routing
 pub mod route;
 

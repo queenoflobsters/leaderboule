@@ -1,7 +1,5 @@
 use dioxus::prelude::*;
 
-use crate::api::utils;
-
 #[component]
 pub fn PageNotFound(segments: Vec<String>) -> Element {
     let mut filler = use_signal(String::new);

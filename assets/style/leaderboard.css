@@ -1,65 +1,12 @@
 /* GLOBAL CONTAINER */
 .leaderboard-container {
-  width: fit-content;
-  max-width: 100%;
-  margin: 0 auto;
-}
-
-/* BANNER */
-.banner {
-  display: grid;
-  grid-template-columns: 1fr auto auto;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-}
-
-.banner-icon {
-  width: 1.35rem;
-  height: 1.35rem;
-}
-
-
-.sort-button {
-  display: flex;
-}
-
-.sort-button.active {
-  background-color: rgb(58, 118, 245);
-}
-
-.sort-menu {
-  width: fit-content;
-  margin-left: auto;
-  border: 0.15rem solid #555;
-  border-radius: 0.4rem;
-  overflow: hidden;
-}
-
-.sort-menu-item {
-  display: flex;
-  align-items: center;
+  width: 30rem;
   gap: 1rem;
-  color: white;
-  text-decoration: none;
-  font-size: 1.1rem;
-  padding: 0.4rem 1.5rem;
-  text-align: right;
-}
-
-.sort-menu-item:hover {
-  background-color: #333;
-}
-
-.reload-button {
-  display: flex;
-  background-color: #840000;
 }
 
 /* USER CARDS */
 .cards {
-  width: 30rem;
   max-width: 100%;
-  margin-top: 2.3rem;
 }
 
 .card {
@@ -69,12 +16,12 @@
   height: fit-content;
   grid-template-columns: 1fr auto;
   gap: 0.5rem;
-  padding: 1rem 1rem 1rem calc(1rem + 0.4rem);
+  padding: 1rem 1rem 1rem calc(1rem + var(--lambda-border-radius));
   margin: 1.4rem auto;
-  background-color: #222;
-  color: #ddd;
+  background-color: var(--button-bg-color);
+  color: var(--button-fg-color);
   font-variant-numeric: tabular-nums;
-  border-radius: 0.3rem;
+  border-radius: var(--lambda-border-radius);
 }
 
 
@@ -116,9 +63,8 @@
   filter: drop-shadow(0 0 0.35rem color-mix(in srgb, currentColor 75%, transparent));
 }
 
-
 .games-lost {
-  color: #fc5356;
+  color: var(--delicate-accent);
   filter: drop-shadow(0 0 0.35rem color-mix(in srgb, currentColor 75%, transparent));
 }
 
@@ -128,12 +74,12 @@
 }
 
 .ratio {
-  color: #bbb;
+  color: var(--button-fg-color);
   filter: drop-shadow(0 0 0.5em color-mix(in srgb, currentColor 50%, transparent));
 }
 
 .player-rank {
-  color: #bbb;
+  color: var(--button-fg-color);
   display: inline-flex;
   align-items: center;
   font-size: 1.1rem;
@@ -146,7 +92,7 @@
 .first,
 .second,
 .third {
-  border: 0.05rem gray solid;
+  border: 0.1rem gray solid;
 }
 
 .first::before,
@@ -157,7 +103,7 @@
   top: 0;
   left: 0;
   bottom: 0;
-  width: 0.3rem;
+  width: var(--lambda-border-radius);
 }
 
 .first {
@@ -183,6 +129,3 @@
 .third::before {
   background-color: #5e2906;
 }
-
-
-

@@ -1,10 +1,6 @@
 .new-game-container {
-  display: flex;
-  flex-direction: column;
-  width: fit-content;
-  max-width: 100%;
-  margin: 0 auto;
   gap: 1.6rem;
+  --std-gap: 0.7rem;
 }
 
 .team-entry-container {
@@ -16,10 +12,6 @@
   .team-entry-container {
     flex-direction: row;
   }
-
-  /* .team-entry-container > * { */
-  /* flex: 1; */
-  /* } */
 }
 
 @media (max-width: 48rem) {
@@ -31,7 +23,7 @@
 .validate-button {
   font-size: 1.3rem;
   color: black;
-  background-color: #13f93a;
+  background-color: var(--elo-gain-color);
   width: fit-content;
   align-self: center;
 }
@@ -50,17 +42,13 @@
 /* SCORE INPUT */
 .score-input {
   display: flex;
-  gap: 0.7rem;
+  gap: var(--std-gap);
 }
 
 .score-input-button {
   display: flex;
 }
 
-.score-input-icon {
-  width: 1.35rem;
-  height: 1.35rem;
-}
 
 .score-input-field {
   text-indent: 0;
@@ -76,14 +64,14 @@
   position: relative;
   flex-direction: column;
   width: 20rem;
-  gap: 1.2rem;
+  gap: var(--std-gap);
 }
 
 /* BANNER */
 .player-selector-banner {
   display: flex;
   width: 100%;
-  gap: 0.7rem;
+  gap: var(--std-gap);
 }
 
 
@@ -95,11 +83,6 @@
   display: flex;
 }
 
-.player-selector-clear-icon {
-  display: flex;
-  width: 1.35rem;
-  height: 1.35rem;
-}
 
 /* PLAYER SEARCH BOX */
 .player-selector-search-box {
@@ -123,7 +106,7 @@
 .selected-players-box {
   display: flex;
   flex-direction: column;
-  gap: 0.7rem;
+  gap: var(--std-gap);
 }
 
 .selected-player {
@@ -131,7 +114,7 @@
   border-radius: 0.4rem;
   background-color: #222;
   overflow: hidden;
-  padding: 0.2rem 0.5rem;
+  padding: .1rem .5rem;
   align-items: center;
 }
 
@@ -141,31 +124,22 @@
   padding: 0 0.2rem;
 }
 
-
-.player-remove-icon {
-  display: flex;
-  width: 1.35rem;
-  height: 1.35rem;
-}
-
 /* USER SEARCH CARD */
 .user-search-card {
   display: grid;
   grid-template-columns: 1fr auto;
   width: 100%;
-  padding: 0.7rem 0;
+  padding: var(--std-gap) 0;
   align-items: center;
 }
 
-
 .player-selector-search-box .user-search-card:not(:last-child) {
-  border-bottom: 0.15rem solid #555;
+  border-bottom: var(--lambda-border);
 }
 
 .user-search-card-elo {
   text-align: right;
   font-weight: bold;
-  color: #0ecc08;
-  text-shadow: 0 0 0.5em color-mix(in srgb, currentColor 70%, transparent);
+  color: var(--elo-gain-color);
 }
 

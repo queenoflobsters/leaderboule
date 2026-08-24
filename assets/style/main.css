@@ -2,11 +2,27 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Ubuntu:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400;1,500;1,700&display=swap');
 
+:root {
+  --global-bg-color: #111;
+  --global-fg-color: white;
+  --button-bg-color: #222;
+  --button-fg-color: #bbb;
+  --delicate-accent: #fc5356;
+  --profound-accent: #840000;
+  --secondary-accent: #3a76f5;
+  --thirdary-accent: goldenrod;
+  --lambda-border-color: #555;
+  --lambda-border: 0.15rem solid #555;
+  --lambda-border-radius: 0.4rem;
+  --elo-gain-color: #0ecc08;
+  --elo-loss-color: #fc2a2e;
+}
+
 body {
-  background-color: #111;
-  color: #ffffff;
+  background-color: var(--global-bg-color);
+  color: var(--global-fg-color);
   font-family: Ubuntu, 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  margin: 20px;
+  margin: 1.2rem;
 }
 
 *,
@@ -21,8 +37,8 @@ button {
   border-radius: 0.3rem;
   padding: 0.7rem;
   font-weight: bold;
-  background-color: #222;
-  color: #bbb;
+  background-color: var(--button-bg-color);
+  color: var(--button-fg-color);
 }
 
 input {
@@ -30,9 +46,9 @@ input {
   border: none;
   outline: none;
   box-shadow: none;
+  background-color: var(--button-bg-color);
   color: white;
-  background-color: #222;
-  border-radius: 0.3rem;
+  border-radius: var(--lambda-border-radius);
 }
 
 .abnormal-state-message {
@@ -45,5 +61,25 @@ input {
 .error-message {
   align-self: center;
   text-align: center;
-  color: #fc5356;
+  color: var(--delicate-accent);
+}
+
+.cool-glow {
+  filter: drop-shadow(0 0 0.35rem color-mix(in srgb, currentColor 75%, transparent));
+}
+
+.icon {
+  display: flex;
+  width: 1.45em;
+  height: 1.45em;
+  margin: 0;
+  padding: 0;
+}
+
+.route-container {
+  display: flex;
+  flex-direction: column;
+  max-width: 100%;
+  margin: 0 auto;
+  width: fit-content;
 }

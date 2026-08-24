@@ -1,16 +1,12 @@
-
 .login-outer-container {
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
   justify-content: center;
   align-items: center;
-  max-width: 100%;
+
+  width: 30rem;
 }
 
 .login-inner-container {
   display: flex;
-  width: 30rem;
   flex-direction: column;
 }
 
@@ -23,49 +19,49 @@
 
 .instruction-container a {
   color: white;
-  text-decoration: underline #fc5356 0.15rem;
+  text-decoration: underline var(--delicate-accent) 0.15rem;
 }
 
 .instruction-bullet {
   grid-column: 1;
-  background-color: #282828;
-  padding: 0.5rem 0.75rem;
-  margin-right: 0.4rem;
-  border-radius: 2rem;
+  background-color: var(--button-bg-color);
+  padding: .5rem .8rem;
+  margin-right: .4rem;
+  border-radius: 100rem;
 }
 
 .login-form {
   display: flex;
-  gap: 0.8rem;
   flex-direction: column;
+  gap: .8rem;
 }
 
 .login-input {
-  padding: 0.7rem;
+  padding: .6rem;
 }
 
 .login-button {
   width: 10rem;
   align-self: flex-end;
-  color: #fc5356;
-  text-shadow: 0 0 0.5em color-mix(in srgb, currentColor 70%, transparent);
+  color: var(--delicate-accent);
+  text-shadow: 0 0 0.5em color-mix(in srgb, currentColor 90%, transparent);
 }
 
 .forgot-password-button {
   cursor: pointer;
-  text-decoration: underline #fc5356 0.15rem;
+  text-decoration: underline var(--delicate-accent) 0.15rem;
 }
 
 /* FORGOTTEN PASSWORD */
 .forgotten-password {
+  display: block;
   margin: 1rem 0.5rem;
   padding: 0.5rem;
-  border: 0.15rem solid #555;
-  border-radius: 0.4rem;
-  display: block;
+  border: var(--lambda-border);
+  border-radius: var(--lambda-border-radius);
 }
 
 .petanque-email {
   font-weight: bold;
-  color: #fc5356;
+  color: var(--delicate-accent);
 }

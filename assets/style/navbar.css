@@ -1,67 +1,57 @@
 /* TOP-BAR STYLES */
 .top-bar {
+  display: flex;
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   height: 4rem;
-  color: white;
-  display: flex;
+  color: var(--global-fg-color);
   align-items: center;
   padding: 0 1rem;
   z-index: 420; /* GO FORTH MY CHILD */
-  background-color: #111;
+  background-color: var(--global-bg-color);
+  font-size: 1.25rem;
+  font-weight: bold;
 }
 
 .hamburger {
-  border: none;
   display: flex;
+  border: none;
   align-items: center;
   padding: 0.5rem;
   margin-right: 1rem;
 }
 
 .hamburger.open {
-  background-color: #840000;
+  background-color: var(--profound-accent);
 }
 
-.current-route-title {
-  font-size: 1.25rem;
-  font-weight: bold;
-}
 
 /* SIDEBAR */
 .sidebar {
+  display: flex;
   position: fixed;
   top: 4rem; /* just under top-bar */
   left: 0;
   bottom: 0;
-  background-color: #111;
+  background-color: var(--global-bg-color);
   z-index: 420; /* GO CONQUEST THE WEST */
-  display: flex;
   flex-direction: column;
-}
-
-.route-icon {
-  width: 1.5rem;
-  height: 1.5rem;
+  gap: 1rem;
 }
 
 
 .normal-routes {
   flex: 1;
-  margin-bottom: 1rem;
 }
 
-.routes-container {
-  overflow: hidden;
-}
 
-.route-entry {
+.link-entry {
   display: flex;
   align-items: center;
   gap: 1rem;
-  color: white;
+  color: var(--global-fg-color);
   text-decoration: none;
   font-size: 1.1rem;
 }
@@ -85,17 +75,17 @@
   }
 
   .active-route {
-    background-color: #840000;
+    background-color: var(--profound-accent);
   }
 
-  .route-entry:hover {
-    box-shadow: inset 0 0 0 0.2rem #840000;
+  .link-entry:hover {
+    box-shadow: inset 0 0 0 0.2rem var(--profound-accent);
   }
 
-  .route-entry {
+  .link-entry {
     margin: 1rem;
     padding: 1rem;
-    border-radius: 0.3rem;
+    border-radius: 0.4rem;
   }
 }
 
@@ -106,22 +96,21 @@
     margin: 0.3rem 1rem 1rem 1rem;
   }
 
-  .routes-container {
-    border: 0.15rem solid #555;
-    border-radius: 0.4rem;
+  .links-container {
+    border: var(--lambda-border);
+    border-radius: var(--lambda-border-radius);
     overflow: hidden;
   }
 
-
   .active-route {
-    background-color: #222;
+    background-color: var(--global-bg-color);
   }
 
-  .route-entry:hover {
+  .link-entry:hover {
     background-color: #333;
   }
 
-  .route-entry {
+  .link-entry {
     padding: 0.8rem 1.5rem;
   }
 }
