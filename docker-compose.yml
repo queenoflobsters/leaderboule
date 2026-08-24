@@ -1,9 +1,11 @@
 services:
-  # Container 1: Surreal database
+  # -------------------------------------------------------------
+  # Leaderboule - Dioxus Application
+  # -------------------------------------------------------------
   surrealdb:
-    image: surrealdb/surrealdb:v3.0.0
+    image: surrealdb/surrealdb:v3.2.0
     user: root
-    command: start --bind 0.0.0.0:8000 rocksdb:/data/boules.db
+    command: start --bind 0.0.0.0:8000 surrealkv:/data/boules.db
     ports:
       - "8000:8000" # For me to access the db anytime
     volumes:
@@ -20,22 +22,23 @@ services:
       retries: 5
       
 
-  # Container 2: Dioxus App
+  # -------------------------------------------------------------
+  # SurrealDB Database
+  # -------------------------------------------------------------
   app:
     build: .
     image: registry.gitlab.com/sia-insa-lyon/va/petanque-insa-club:latest
     init: true 
     environment:
       - DATABASE_URL=surrealdb:8000
-      - DATABASE_USER=${DATABASE_USER:~root}
-      - DATABASE_PASS=${DATABASE_PASS:~root}
+      - DATABASE_USER=${DATABASE_USER:-root}
+      - DATABASE_PASS=${DATABASE_PASS:-root}
       - HELLOASSO_CLIENT_ID=${HELLOASSO_CLIENT_ID}
       - HELLOASSO_CLIENT_SECRET=${HELLOASSO_CLIENT_SECRET}
     ports:
       - "8080:8080"
     restart: unless-stopped
     depends_on:
-      # surrealdb
       surrealdb:
         condition: service_healthy
 
