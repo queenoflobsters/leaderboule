@@ -3,14 +3,14 @@ DEFINE TABLE IF NOT EXISTS user;
 
 -- email field constraints
 DEFINE FIELD IF NOT EXISTS email ON TABLE user
-    VALUE string::trim($value)
     TYPE string
+    VALUE string::trim($value)
     ASSERT string::is_email($value);
 
 -- username field constraints
 DEFINE FIELD IF NOT EXISTS username ON TABLE user 
-    VALUE string::trim($value) 
     TYPE string 
+    VALUE string::trim($value) 
     ASSERT string::len($value) >= 3 AND string::len($value) <= 32;
 
 -- elo constraint (must be >= 0)
@@ -52,12 +52,9 @@ DEFINE FIELD IF NOT EXISTS win_ratio ON TABLE user
 
 -- AUTO-COMPUTED: best elo
 DEFINE FIELD IF NOT EXISTS best_elo ON TABLE user
-    VALUE IF $before.best_elo == NONE 
-        THEN $this.elo 
-        ELSE math::max([$this.elo, $before.best_elo]) 
-    END
+    TYPE int
     DEFAULT 400
-    TYPE int;
+    VALUE math::max([$this.elo, $before OR 0]);
 
 -- Indexes for unique values and fast searching
 DEFINE INDEX IF NOT EXISTS idx_user_leaderboard ON TABLE user FIELDS elo, games_played;
