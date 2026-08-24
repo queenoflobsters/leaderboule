@@ -38,26 +38,26 @@ DEFINE ANALYZER IF NOT EXISTS user_search_analyzer
 
 -- AUTO-COMPUTED: games_lost 
 DEFINE FIELD IF NOT EXISTS games_lost ON TABLE user
-    TYPE int
-    COMPUTED games_played - games_won;
+    COMPUTED games_played - games_won
+    TYPE int;
 
 -- AUTO-COMPUTED: win_ratio 
 DEFINE FIELD IF NOT EXISTS win_ratio ON TABLE user
-    TYPE float
     COMPUTED IF games_played > 0
         THEN (games_won * 100.0) / games_played
         ELSE 0.0
-    END;
+    END
+    TYPE float;
 
 
 -- AUTO-COMPUTED: best elo
 DEFINE FIELD IF NOT EXISTS best_elo ON TABLE user
-    TYPE int
-    DEFAULT 400
     VALUE IF $before.best_elo == NONE 
         THEN $this.elo 
         ELSE math::max([$this.elo, $before.best_elo]) 
-    END;
+    END
+    DEFAULT 400
+    TYPE int;
 
 -- Indexes for unique values and fast searching
 DEFINE INDEX IF NOT EXISTS idx_user_leaderboard ON TABLE user FIELDS elo, games_played;
