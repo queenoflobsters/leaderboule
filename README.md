@@ -49,6 +49,7 @@ docker compose up --build
 ```
 
 ## Fonctionnalités
+- [x] Documentation
 - [x] Page de Classement
   - [x] Trier par différents critères
   - [x] Chercher un utilisateur
@@ -70,7 +71,7 @@ docker compose up --build
 - [ ] Changer le logo
 - [ ] CICD Pipeline QUI FONCTIONNE
 - [ ] Working Elo system (implémenter le job d'Anaé)
-- [ ] Documentation
+- [ ] Investigate surrealkv instead of rocksdb
 
 Compter le nombre de lignes de code (j'aime bien faire ça)
 

@@ -11,6 +11,7 @@ services:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik-network"
       - "traefik.http.routers.leaderboule-app.rule=Host(`${HOST}`)"
+      - "traefik.http.routers.leaderboule-app.tls=true"
       - "traefik.http.routers.leaderboule-app.tls.certresolver=httpchallenge"
       # Dockerfile exposes port 8080, Traefik must forward to 8080:
       - "traefik.http.services.leaderboule-app.loadbalancer.server.port=8080"
@@ -38,8 +39,14 @@ services:
   # -------------------------------------------------------------
   leaderboule-db:
     image: surrealdb/surrealdb:v3.0.0
+    # This is a problem but it doesn't work without it 
     user: root
-    command: start --bind 0.0.0.0:8000 rocksdb:/data/boules.db
+    # # Disables SELinux
+    # security_opt:
+    #   - label:disable
+    # command: start --bind 0.0.0.0:8000 rocksdb:/data/boules.db
+    # # surrealkv backend instead (pure Rust) instead of rocksdb
+    command: start --bind 0.0.0.0:8000 surrealkv:/data/boules.db
     restart: always
     pull_policy: if_not_present
     # Exposes database for remote access with Surrealist software
@@ -48,6 +55,7 @@ services:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik-network"
       - "traefik.http.routers.leaderboule-db.rule=Host(`db.${HOST}`)"
+      - "traefik.http.routers.leaderboule-db.tls=true"
       - "traefik.http.routers.leaderboule-db.tls.certresolver=httpchallenge"
       - "traefik.http.services.leaderboule-db.loadbalancer.server.port=8000"
     environment:

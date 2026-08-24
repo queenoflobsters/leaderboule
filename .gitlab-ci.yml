@@ -16,7 +16,6 @@ build-and-push:
     - docker buildx create --name ci-builder --use tls-env
     - docker buildx inspect --bootstrap
   script:
-  script:
     - |
       docker buildx build \
         --platform linux/amd64 \
