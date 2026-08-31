@@ -80,11 +80,11 @@ fn ProfileStats(profile: UserProfile) -> Element {
     rsx! {
         div { class: "profile-container",
             span { class: "primary-stat",
-                span { class: "stat-title", "Elo"}
+                span { class: "stat-title", "Points Pétanque"}
                 span { class: "stat-elo cool-glow", "{profile.elo}"}
             }
             span { class: "secondary-stat",
-                span { class: "stat-title", "Record  "}
+                span { class: "stat-title", "Record"}
                 span { class: "stat-elo cool-glow", "{profile.best_elo}"}
             }
             span { class: "secondary-stat",
