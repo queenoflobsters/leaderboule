@@ -3,6 +3,8 @@ use crate::client::route::Route;
 use dioxus::prelude::*;
 
 const LOGIN_CSS: Asset = asset!("/assets/style/login.css");
+const EYE_OPEN_SVG: Asset = asset!("/assets/icons/eye-open.svg");
+const EYE_CLOSED_SVG: Asset = asset!("/assets/icons/eye-closed.svg");
 
 #[component]
 pub fn Login() -> Element {
@@ -64,12 +66,17 @@ pub fn Login() -> Element {
                         oninput: move |e| email.set(e.value()),
                         required: true,
                     }
-                    input { class: "login-input",
-                        r#type: "password",
-                        value: "{password}",
-                        placeholder: "Mot de passe",
-                        oninput: move |e| password.set(e.value()),
-                        required: true,
+                    div {
+                        input { class: "login-input",
+                            r#type: "password",
+                            value: "{password}",
+                            placeholder: "Mot de passe",
+                            oninput: move |e| password.set(e.value()),
+                            required: true,
+                        }
+                        button {
+                            img { class: "icon", src: EYE_OPEN_SVG, alt: "Filtrer", }
+                        }
                     }
                     button { class: "login-button",
                         type: "submit",
