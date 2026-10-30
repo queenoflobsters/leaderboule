@@ -18,7 +18,16 @@ const MOV_REFERENCE: f64 = 5.0;
 /// Courbe concave : les écarts extrêmes comptent plus, mais pas linéairement.
 const MOV_EXPONENT: f64 = 0.7;
 const MOV_MIN: f64 = 0.5;
-const MOV_MAX: f64 = 1.9;
+const MOV_MAX: f64 = 1.5;
+
+/// Avantage d'effectif : une équipe de n joueurs reçoit un bonus de rating
+/// logarithmique. Le bonus s'annule entre deux équipes de même taille et
+/// favorise la plus grande équipe dans les formats asymétriques (2v1, 1v6...).
+const TEAM_SIZE_BONUS: f64 = 100.0;
+
+/// Amortissement de l'asymétrie d'effectif dans le calcul de K.
+/// Pour n équipes égales, K = 200 × n ; pour 2v1, le facteur est réduit.
+const ASYMMETRY_EXPONENT: f64 = 0.25;
 
 /// Bonus de cohésion : une équipe hétérogène est considérée comme plus forte,
 /// ce qui réduit ses gains et augmente ses pertes.
@@ -38,7 +47,7 @@ const COMPLETION_BONUS: i64 = 1;
 
 /// Placement : les parties contenant des joueurs peu expérimentés ont des
 /// enjeux plus élevés. Le facteur converge vers 1 après ~60 parties.
-const PLACEMENT_MAX_BONUS: f64 = 0.5;
+const PLACEMENT_MAX_BONUS: f64 = 0.15;
 const PLACEMENT_DECAY_GAMES: f64 = 5.0;
 
 /// Le résultat des performances d'un utilisateur pendant une partie.
@@ -106,8 +115,11 @@ pub fn compute_changes(
     let right_expected = 1.0 - left_expected;
 
     let placement = placement_factor(&left_team_users, &right_team_users);
-    let k_match =
-        K_BASE * ((left_team_users.len() * right_team_users.len()) as f64).sqrt() * placement;
+    let left_size = left_team_users.len() as f64;
+    let right_size = right_team_users.len() as f64;
+    let size_factor = (left_size * right_size).sqrt()
+        * (left_size.min(right_size) / left_size.max(right_size)).powf(ASYMMETRY_EXPONENT);
+    let k_match = K_BASE * size_factor * placement;
 
     let left_pool = if left_won {
         k_match * (1.0 - left_expected) * mov
@@ -197,8 +209,9 @@ fn effective_team_rating(team: &[UserWithElo]) -> f64 {
         .sum::<f64>()
         / n;
     let standard_deviation = variance.sqrt();
+    let size_bonus = TEAM_SIZE_BONUS * (team.len() as f64).ln();
 
-    mean + (DISPERSION_WEIGHT * standard_deviation).min(DISPERSION_CAP)
+    mean + (DISPERSION_WEIGHT * standard_deviation).min(DISPERSION_CAP) + size_bonus
 }
 
 /// Facteur de placement basé sur l'expérience moyenne des participants.
@@ -353,7 +366,19 @@ mod tests {
     #[test]
     fn fanny_multiplier_is_substantial() {
         let changes = deltas(13, 0, vec![player(1, 1500)], vec![player(2, 1500)]);
-        assert_eq!(changes, vec![191, -189]);
+        assert_eq!(changes, vec![151, -149]);
+    }
+
+    #[test]
+    fn asymmetric_new_player_case_stays_reasonable() {
+        // Cas signalé : 500 + 400 (13) contre 500 (0), joueurs peu expérimentés.
+        let changes = deltas(
+            13,
+            0,
+            vec![player_with_games(1, 500, 0), player_with_games(2, 400, 0)],
+            vec![player_with_games(3, 500, 0)],
+        );
+        assert_eq!(changes, vec![87, 101, -185]);
     }
 
     #[test]
