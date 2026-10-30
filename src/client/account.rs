@@ -126,8 +126,8 @@ fn Management(error_msg: Signal<String>, email: String) -> Element {
                 span { class: "email", "{email}"}
             }
             DisconnectButton { error_msg }
-            UsernameChanger { error_msg }
-            PasswordChanger { error_msg }
+            UsernameChanger {}
+            PasswordChanger {}
         }
     }
 }
@@ -162,36 +162,36 @@ fn DisconnectButton(error_msg: Signal<String>) -> Element {
 }
 
 #[component]
-fn UsernameChanger(error_msg: Signal<String>) -> Element {
+fn UsernameChanger() -> Element {
     let mut value = use_signal(String::new);
     let mut password = use_signal(String::new);
-    let mut message = use_signal(|| "Changer le nom d'utilisateur".to_string());
+    let mut form_error = use_signal(|| Option::<String>::None);
     let mut show = use_signal(|| false);
     let mut loading = use_signal(|| false);
+
     let change_username_fn = move |_evt| {
-        message.set("Chargement...".to_string());
+        form_error.set(None);
         loading.set(true);
         spawn(async move {
             match auth::change_username(value.to_string(), password.to_string()).await {
                 Ok(Ok(())) => {
-                    message.set("Nom d'utilisateur changé avec succès".to_string());
                     password.set(String::new());
                     value.set(String::new());
                     loading.set(false);
                     hard_reload();
                 }
                 Ok(Err(e)) => {
-                    message.set(e);
+                    form_error.set(Some(e));
                     loading.set(false);
                 }
                 Err(e) => {
-                    error_msg.set(e.to_string());
-                    message.set("Changer le nom d'utilisateur".to_string());
-                    loading.set(false)
+                    form_error.set(Some(e.to_string()));
+                    loading.set(false);
                 }
             }
         });
     };
+
     if show() {
         rsx! {
             div { class: "profile-container important-container",
@@ -201,7 +201,10 @@ fn UsernameChanger(error_msg: Signal<String>) -> Element {
                     r#type: "username",
                     placeholder: "Nom d'utilisateur",
                     value: "{value}",
-                    oninput: move |e| value.set(e.value()),
+                    oninput: move |e| {
+                        form_error.set(None);
+                        value.set(e.value());
+                    },
                 }
                 span { "Mot de passe" }
                 input {
@@ -209,13 +212,19 @@ fn UsernameChanger(error_msg: Signal<String>) -> Element {
                     r#type: "password",
                     placeholder: "Mot de passe",
                     value: "{password}",
-                    oninput: move |e| password.set(e.value()),
+                    oninput: move |e| {
+                        form_error.set(None);
+                        password.set(e.value());
+                    },
+                }
+                if let Some(error) = form_error() {
+                    p { class: "form-error", role: "alert", "{error}" }
                 }
                 button { class: "important-button",
                     r#type: "button",
                     disabled: loading(),
                     onclick: change_username_fn,
-                    "{message}"
+                    "Changer le nom d'utilisateur"
                 }
             }
         }
@@ -223,40 +232,44 @@ fn UsernameChanger(error_msg: Signal<String>) -> Element {
         rsx! {
             button { class: "important-button",
                 r#type: "button",
-                onclick: move |_| show.set(true),
-                "{message}"
+                onclick: move |_| {
+                    form_error.set(None);
+                    show.set(true);
+                },
+                "Changer le nom d'utilisateur"
             }
         }
     }
 }
 
 #[component]
-fn PasswordChanger(error_msg: Signal<String>) -> Element {
+fn PasswordChanger() -> Element {
     let mut password_old = use_signal(String::new);
     let mut password_new = use_signal(String::new);
-    let mut message = use_signal(|| "Changer le mot de passe".to_string());
+    let mut form_error = use_signal(|| Option::<String>::None);
     let mut show = use_signal(|| false);
     let mut loading = use_signal(|| false);
+
     let change_password_fn = move |_evt| {
-        message.set("Chargement...".to_string());
+        form_error.set(None);
         loading.set(true);
         spawn(async move {
             match auth::change_password(password_old.to_string(), password_new.to_string()).await {
                 Ok(Ok(())) => {
-                    message.set("Mot de passe changé avec succès".to_string());
                     password_new.set(String::new());
                     password_old.set(String::new());
+                    loading.set(false);
                     hard_reload();
                 }
                 Ok(Err(e)) => {
-                    message.set(e);
+                    form_error.set(Some(e));
+                    loading.set(false);
                 }
                 Err(e) => {
-                    error_msg.set(e.to_string());
-                    message.set("Changer le mot de passe".to_string());
+                    form_error.set(Some(e.to_string()));
+                    loading.set(false);
                 }
             }
-            loading.set(false)
         });
     };
 
@@ -269,7 +282,10 @@ fn PasswordChanger(error_msg: Signal<String>) -> Element {
                     r#type: "password",
                     placeholder: "Mot de passe actuel",
                     value: "{password_old}",
-                    oninput: move |e| password_old.set(e.value()),
+                    oninput: move |e| {
+                        form_error.set(None);
+                        password_old.set(e.value());
+                    },
                 }
                 span { "Nouveau mot de passe" }
                 input {
@@ -277,13 +293,19 @@ fn PasswordChanger(error_msg: Signal<String>) -> Element {
                     r#type: "password",
                     placeholder: "Nouveau mot de passe",
                     value: "{password_new}",
-                    oninput: move |e| password_new.set(e.value()),
+                    oninput: move |e| {
+                        form_error.set(None);
+                        password_new.set(e.value());
+                    },
+                }
+                if let Some(error) = form_error() {
+                    p { class: "form-error", role: "alert", "{error}" }
                 }
                 button { class: "important-button",
                     r#type: "button",
                     disabled: loading(),
                     onclick: change_password_fn,
-                    "{message}"
+                    "Changer le mot de passe"
                 }
             }
         }
@@ -291,8 +313,11 @@ fn PasswordChanger(error_msg: Signal<String>) -> Element {
         rsx! {
             button { class: "important-button",
                 r#type: "button",
-                onclick: move |_| show.set(true),
-                "{message}"
+                onclick: move |_| {
+                    form_error.set(None);
+                    show.set(true);
+                },
+                "Changer le mot de passe"
             }
         }
     }

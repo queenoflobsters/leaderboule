@@ -853,6 +853,18 @@ input:focus {
   background-color: color-mix(in srgb, var(--color-accent-strong) 80%, white 20%);
 }
 
+/* Message d'erreur propre au formulaire, indépendant du libellé du bouton. */
+.form-error {
+  padding: var(--space-2) var(--space-3);
+  overflow-wrap: anywhere;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 35%, transparent);
+  border-radius: var(--radius-sm);
+  background-color: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  color: var(--color-accent);
+  font-size: var(--text-sm);
+  text-align: left;
+}
+
 /* --- Connexion ---------------------------------------------------------- */
 
 .login-outer-container {
