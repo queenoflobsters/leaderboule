@@ -100,6 +100,10 @@ DATABASE_URL="postgres://leaderboule:leaderboule@127.0.0.1:5433/leaderboule" dx 
   - [x] Mot de passe (plutôt sécurisé)
   - [x] Sessions enregistrées sur le navigateur
   - [x] Intégration avec Helloasso
+- [x] Système d'Elo custom pour la pétanque (voir [ELO_SYSTEM.md](ELO_SYSTEM.md))
+  - [x] Prise en compte de l'écart au score et des parties terminées
+  - [x] Gestion des équipes de 1 à 6 joueurs et de l'hétérogénéité
+  - [x] Placement dynamique des nouveaux joueurs
 - [x] Modération et administration
   - [x] Rôles `user` / `admin` (admins `.env` toujours admins)
   - [x] Recherche et inspection des comptes
@@ -113,7 +117,6 @@ DATABASE_URL="postgres://leaderboule:leaderboule@127.0.0.1:5433/leaderboule" dx 
 ## Restant à faire
 - [ ] Système de trophés
 - [ ] Changer le logo
-- [ ] Working Elo system (implémenter le job d'Anaé)
 
 Compter le nombre de lignes de code (j'aime bien faire ça)
 

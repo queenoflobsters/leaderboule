@@ -38,6 +38,8 @@ const GAME_REGISTRY_COOLDOWN: u64 = 15 * 60;
 pub struct UserWithElo {
     pub id: Uuid,
     pub elo: u64,
+    /// Nombre de parties jouées avant la partie en cours de calcul.
+    pub games_played: u64,
 }
 
 /// Initialise la connexion PostgreSQL et crée le schéma s'il n'existe pas.
@@ -418,6 +420,7 @@ pub(crate) async fn map_usernames(
                 UserWithElo {
                     id: user.id,
                     elo: user.elo.max(0) as u64,
+                    games_played: user.games_played.max(0) as u64,
                 },
             )
         })
