@@ -33,15 +33,15 @@ pub fn Account() -> Element {
         Some(Ok(profile)) => profile,
         Some(Err(e)) => {
             error_msg.set(e.to_string());
-            let mut temp = UserProfile::default();
-            temp.username = "ERREUR".to_string();
-            temp
+            UserProfile {
+                username: "ERREUR".to_string(),
+                ..Default::default()
+            }
         }
-        None => {
-            let mut temp = UserProfile::default();
-            temp.username = "Chargement...".to_string();
-            temp
-        }
+        None => UserProfile {
+            username: "Chargement...".to_string(),
+            ..Default::default()
+        },
     };
 
     rsx! {
@@ -139,7 +139,6 @@ fn DisconnectButton(error_msg: Signal<String>) -> Element {
     let mut logout_button_message = use_signal(|| "Déconnexion");
     let mut logout_button_loading = use_signal(|| false);
     let logout_fn = move |_evt| {
-        let nav = nav.clone();
         spawn(async move {
             logout_button_message.set("Chargement...");
             logout_button_loading.set(true);
@@ -175,13 +174,11 @@ fn UsernameChanger(error_msg: Signal<String>) -> Element {
         spawn(async move {
             match auth::change_username(value.to_string(), password.to_string()).await {
                 Ok(Ok(())) => {
-                    _ = {
-                        message.set("Nom d'utilisateur changé avec succès".to_string());
-                        password.set(String::new());
-                        value.set(String::new());
-                        loading.set(false);
-                        hard_reload();
-                    }
+                    message.set("Nom d'utilisateur changé avec succès".to_string());
+                    password.set(String::new());
+                    value.set(String::new());
+                    loading.set(false);
+                    hard_reload();
                 }
                 Ok(Err(e)) => {
                     message.set(e);
@@ -244,12 +241,10 @@ fn PasswordChanger(error_msg: Signal<String>) -> Element {
         spawn(async move {
             match auth::change_password(password_old.to_string(), password_new.to_string()).await {
                 Ok(Ok(())) => {
-                    _ = {
-                        message.set("Mot de passe changé avec succès".to_string());
-                        password_new.set(String::new());
-                        password_old.set(String::new());
-                        hard_reload();
-                    }
+                    message.set("Mot de passe changé avec succès".to_string());
+                    password_new.set(String::new());
+                    password_old.set(String::new());
+                    hard_reload();
                 }
                 Ok(Err(e)) => {
                     message.set(e);

@@ -1,13 +1,13 @@
-/// COMMENT ÇA FONCTIONNE
-///     Pour faire un call à l'API Helloasso, il faut un `access_token`
-///     Pour avoir un `access_token` il faut un Client ID et un Client Secret, qui peuvent être récupérés sur le site d'Helloasso
-///     La requête avec le user_id et user_secret retourne un `access_token` EEEETT un `refresh_token`
-///     Pourquoi ? Parce que l'`access_token` n'est valable que pour 30 minutes, après il faut en redemander un
-///     MAIS tu peux pas en redemander un simplement avec ton user_id et ton user_secret (enfin si mais c'est pas recommander)
-///     Il faut faire un requête pour un NOUVEAU `access_token` avec le `refresh_token` qui lui est valable 30 jours
-///     Sauf que quand tu fais un requête pour un nouveau `access_token` ça te donne AUSSI un nouveau `refresh_token`
-///     Donc ils sont rafraichis en même temps en fait
-/// VOILÀ
+// COMMENT ÇA FONCTIONNE
+//     Pour faire un call à l'API Helloasso, il faut un `access_token`
+//     Pour avoir un `access_token` il faut un Client ID et un Client Secret, qui peuvent être récupérés sur le site d'Helloasso
+//     La requête avec le user_id et user_secret retourne un `access_token` EEEETT un `refresh_token`
+//     Pourquoi ? Parce que l'`access_token` n'est valable que pour 30 minutes, après il faut en redemander un
+//     MAIS tu peux pas en redemander un simplement avec ton user_id et ton user_secret (enfin si mais c'est pas recommander)
+//     Il faut faire un requête pour un NOUVEAU `access_token` avec le `refresh_token` qui lui est valable 30 jours
+//     Sauf que quand tu fais un requête pour un nouveau `access_token` ça te donne AUSSI un nouveau `refresh_token`
+//     Donc ils sont rafraichis en même temps en fait
+// VOILÀ
 
 use dioxus::prelude::*;
 use serde::Deserialize;
@@ -17,11 +17,11 @@ use std::{
 };
 use tokio::{sync::RwLock, time::Instant};
 
-const HELLOASSO_OAUTH_TOKEN_URL: &'static str = "https://api.helloasso.com/oauth2/token";
-const HELLOASSO_API_URL: &'static str = "https://api.helloasso.com/v5";
-const ASSOCIATION_SLUG: &'static str = "petanqu-insa-club";
+const HELLOASSO_OAUTH_TOKEN_URL: &str = "https://api.helloasso.com/oauth2/token";
+const HELLOASSO_API_URL: &str = "https://api.helloasso.com/v5";
+const ASSOCIATION_SLUG: &str = "petanqu-insa-club";
 // WARNING TODO WARNING change this form slug
-const ASSO_FORM_SLUG: &'static str = "adhesion-2025-2026-petanqu-insa-club";
+const ASSO_FORM_SLUG: &str = "adhesion-2025-2026-petanqu-insa-club";
 static HELLOASSO_CLIENT: OnceLock<HelloassoClient> = OnceLock::new();
 
 /// Initialise la connexion Helloasso

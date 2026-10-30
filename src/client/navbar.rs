@@ -14,7 +14,7 @@ pub fn Navbar() -> Element {
     let username_hook = use_server_future(current_user::get_username)?;
     let username = match username_hook() {
         Some(Ok(username)) => username,
-        Some(Err(e)) => format!("ERREUR: {}", e.to_string()),
+        Some(Err(e)) => format!("ERREUR: {}", e),
         None => "Chargement...".to_string()
     };
     let mut is_open = use_signal(|| false);

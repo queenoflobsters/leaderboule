@@ -1,7 +1,4 @@
-///
-/// Les composants
-/// 
-
+//! Les composants réutilisables de l'application.
 
 /// Barre pour la recherche et le tri
 pub mod search_banner;

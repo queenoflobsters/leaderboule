@@ -1,7 +1,7 @@
-///
-/// Les composants ne seront pas documentés car c'est suffisamment auto-descriptif
-/// Puis franchement j'ai trop la flemme
-///
+//! Le code de l'application côté navigateur.
+//!
+//! Les composants ne seront pas documentés car c'est suffisamment auto-descriptif.
+//! Puis franchement j'ai trop la flemme.
 
 /// Les composants
 pub mod components;

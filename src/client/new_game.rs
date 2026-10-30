@@ -1,4 +1,3 @@
-///
 use crate::{
     api::db::{
         self,
@@ -42,8 +41,8 @@ pub fn NewGame() -> Element {
         let game = GameSendItem::construct(
             left_score.read().0,
             right_score.read().0,
-            &*left_team_members.read().0,
-            &*right_team_members.read().0,
+            &left_team_members.read().0,
+            &right_team_members.read().0,
         );
         spawn(async move {
             match db::global::register_game(game).await {

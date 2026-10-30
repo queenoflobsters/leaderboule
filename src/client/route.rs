@@ -40,6 +40,7 @@ impl Route {
     }
 
     #[cfg(feature = "server")]
+    #[allow(clippy::match_like_matches_macro)] // Je n'aime pas matches!
     pub fn is_public(&self) -> bool {
         // I know about matches! I just don't like it
         match self {

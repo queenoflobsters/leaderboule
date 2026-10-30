@@ -1,14 +1,13 @@
-/// ENTRYPOINT
-///
-/// Bienvenue sur le code de Leaderboule,
-/// l'application de de classement et d'élo du club de pétanque de l'INSA de Lyon
-/// Les variables et le code sont écrits en anglais par convention et habitude mais
-/// je tente de faire des commentaires en français.
-/// Désolé pour les fautes je suis pas particulièrement concentré
-///
-/// Écrit et maintenu par Gabriel Gonguet,
-/// Secrétaire général du comité centrale du partie de la pétanque 
-
+//! ENTRYPOINT
+//!
+//! Bienvenue sur le code de Leaderboule,
+//! l'application de de classement et d'élo du club de pétanque de l'INSA de Lyon
+//! Les variables et le code sont écrits en anglais par convention et habitude mais
+//! je tente de faire des commentaires en français.
+//! Désolé pour les fautes je suis pas particulièrement concentré
+//!
+//! Écrit et maintenu par Gabriel Gonguet,
+//! Secrétaire général du comité centrale du partie de la pétanque
 
 /// Module pour le code du serveur,
 /// maintenu derrière un config guard
