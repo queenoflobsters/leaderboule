@@ -15,12 +15,12 @@ pub mod current_user {
         pub username: String,
         pub member_since: u64,
         pub elo: u64,
-        pub best_elo: u64, // auto-computed
+        pub best_elo: u64,     // maintenu par un trigger PostgreSQL
         pub games_played: u64,
         pub games_won: u64,
-        pub games_lost: u64, // auto-computed
-        pub win_ratio: f32, // auto-computed
-        pub rank: Option<u64>, // computed in function
+        pub games_lost: u64,   // colonne générée par PostgreSQL
+        pub win_ratio: f32,    // colonne générée par PostgreSQL
+        pub rank: Option<u64>, // calculé à la volée
     }
 
     /// Récupère le nom d'utilisateur de l'utilisateur dans la database
@@ -30,17 +30,9 @@ pub mod current_user {
         let Some(session_record) = auth::session::get_from_extension() else {
             return Err(ServerFnError::new("User is not authenticated"));
         };
-        let db = db::get().await;
-        let username_opt: Option<String> = db
-            .query("SELECT VALUE username FROM ONLY $user_id")
-            .bind(("user_id", session_record.user_id.0))
-            .await
-            .map_err(|e| ServerFnError::new(e.to_string()))?
-            .take(0)
-            .map_err(|e| ServerFnError::new(e.to_string()))?;
-        let username = username_opt.ok_or(ServerFnError::new(
-            "Did not find the user's username".to_string(),
-        ))?;
+        let username = db::get_username(session_record.user_id)
+            .await?
+            .ok_or_else(|| ServerFnError::new("Did not find the user's username"))?;
         Ok(username)
     }
 
@@ -51,17 +43,7 @@ pub mod current_user {
         let Some(session_record) = auth::session::get_from_extension() else {
             return Err(ServerFnError::new("User is not authenticated"));
         };
-        let db = db::get().await;
-        let mut user_profile: UserProfile = db
-            .select(&session_record.user_id.0)
-            .await
-            .map_err(|e| ServerFnError::new(e.to_string()))?
-            .ok_or(ServerFnError::new(
-                "Did not find the user's profile".to_string(),
-            ))?;
-        // Fill the rank
-        user_profile.rank = Some(db::get_elo_rank(user_profile.elo).await?);
-        Ok(user_profile)
+        db::get_profile(session_record.user_id).await
     }
 
     /// Structure décrivant une partie,

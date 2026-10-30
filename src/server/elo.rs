@@ -1,19 +1,15 @@
 use std::collections::HashSet;
 
-use serde::{Deserialize, Serialize};
-use surrealdb::types::SurrealValue;
+use uuid::Uuid;
 
-use crate::{
-    api::db::global::GameSendItem,
-    server::{auth::UserId, db::UserWithElo},
-};
+use crate::{api::db::global::GameSendItem, server::db::UserWithElo};
 
 pub const DEFAULT_ELO: u64 = 400;
 
 /// Le résultat des performances d'un utilisateur pendant une partie
-#[derive(Serialize, Deserialize, Clone, SurrealValue)]
+#[derive(Clone, Debug)]
 pub struct UserGameLog {
-    pub id: UserId,
+    pub id: Uuid,
     pub elo_change: i64,
     pub won: bool,
 }
@@ -36,7 +32,7 @@ impl UserGameLog {
         let this_change =
             compute_user_new_elo(this.elo, this_score, other_score, this_team, other_team);
         UserGameLog {
-            id: this.id.clone(),
+            id: this.id,
             elo_change: this_change,
             won: this_score > other_score,
         }

@@ -1,9 +1,9 @@
 .git/
 .cargo/
 .env
-db_start.sh
 README.md
-boules.db
+src_txt/
+boules.db/
 /target
 /temp
 /dist

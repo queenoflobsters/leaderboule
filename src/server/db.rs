@@ -1,12 +1,14 @@
+use std::{collections::HashMap, time::Duration};
+
 use dioxus::server::ServerFnError;
-use serde::{Deserialize, Serialize};
-use surrealdb::{
-    engine::remote::ws::{Client, Ws},
-    opt::auth::Root,
-    types::{Kind, RecordId, SurrealValue, Uuid, Value},
-    Surreal,
+use sea_orm::{
+    ColumnTrait, ConnectOptions, ConnectionTrait, Database, DatabaseConnection, DbBackend, DbErr,
+    EntityTrait, FromQueryResult, JoinType, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
+    RelationTrait, Set, Statement, TransactionTrait,
 };
+use sea_orm_migration::MigratorTrait;
 use tokio::sync::OnceCell;
+use uuid::Uuid;
 
 use crate::{
     api::db::{
@@ -16,177 +18,235 @@ use crate::{
         },
     },
     server::{
-        auth::UserId,
-        elo::{self, UserGameLog},
+        elo,
+        entities::{game, game_player, user},
+        migration::Migrator,
         utils,
     },
 };
 
-/// Référence à la database
-pub static DB: OnceCell<Surreal<Client>> = OnceCell::const_new();
-/// Fichier SQL servant à instantier la base de donnée
-const INIT_SQL: &'static str = include_str!("../init.sql");
+/// Référence à la base de données.
+pub static DB: OnceCell<DatabaseConnection> = OnceCell::const_new();
+
 const USER_PAGE_SIZE: u64 = 8;
 const GAME_PAGE_SIZE: u64 = 5;
 const GAME_REGISTRY_COOLDOWN: u64 = 15 * 60;
 
-/// Structure représentant un utilisateur stockée dans la base de donnée
-#[derive(Serialize, Deserialize, Clone, SurrealValue)]
-pub struct UserRecord {
-    pub id: UserId,
-    pub email: String,
-    pub username: String,
-    pub member_since: u64,
-    pub elo: u64,
-    pub games_played: u64,
-    pub games_won: u64,
-}
-
-/// Petite helper struct pour le calcul d'elo
-#[derive(Serialize, Deserialize, Clone, SurrealValue)]
+/// Petite structure pour le calcul d'elo.
+#[derive(Clone)]
 pub struct UserWithElo {
-    pub id: UserId,
+    pub id: Uuid,
     pub elo: u64,
 }
 
-/// Identifiant de Partie
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash, SurrealValue)]
-#[serde(transparent)]
-pub struct GameId(pub RecordId);
-
-impl GameId {
-    pub fn new_v7() -> Self {
-        Self(RecordId::new("game", Uuid::new_v7()))
-    }
-}
-
-/// Structure d'une partie stockée dans la base de donnée
-#[derive(Serialize, Deserialize, Clone, SurrealValue)]
-pub struct GameRecord {
-    pub id: GameId,
-    pub won_score: u64,
-    pub lost_score: u64,
-    pub players: Vec<UserGameLog>,
-    pub recorded_by: UserId,
-    pub played_at: u64,
-}
-
-/// Initialise la connexion avec la base de donnée
-pub async fn get() -> &'static Surreal<Client> {
+/// Initialise la connexion PostgreSQL et applique les migrations en attente.
+pub async fn get() -> &'static DatabaseConnection {
     DB.get_or_init(|| async {
-        let db_url = std::env::var("DATABASE_URL").unwrap_or("127.0.0.1:8000".to_string());
-        let db_user = std::env::var("DATABASE_USER").unwrap_or("root".to_string());
-        let db_pass = std::env::var("DATABASE_PASS").unwrap_or("root".to_string());
+        let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+            "postgres://leaderboule:leaderboule@127.0.0.1:5432/leaderboule".to_string()
+        });
 
-        let db = Surreal::new::<Ws>(db_url)
+        let mut options = ConnectOptions::new(database_url);
+        options
+            .max_connections(10)
+            .min_connections(1)
+            .connect_timeout(Duration::from_secs(10))
+            .sqlx_logging(false);
+
+        let db = Database::connect(options)
             .await
-            .expect("Failed to connect to SurrealDB");
+            .expect("Impossible de se connecter à PostgreSQL");
 
-        db.signin(Root {
-            username: db_user,
-            password: db_pass,
-        })
-        .await
-        .expect("Failed to sign in to SurrealDB");
-
-        db.use_ns("leaderboule")
-            .use_db("leaderboule")
+        Migrator::up(&db, None)
             .await
-            .expect("Failed to select namespace/db");
-
-        db.query(INIT_SQL)
-            .await
-            .expect("Fail to initialize database");
+            .expect("Impossible d'appliquer les migrations PostgreSQL");
 
         db
     })
     .await
 }
 
-/// Parle avec la base de donnée et récupère les infos sur les utilisateurs
+/// Convertit une erreur SeaORM en erreur de server function.
+pub fn db_err(error: DbErr) -> ServerFnError {
+    ServerFnError::new(error.to_string())
+}
+
+/// Récupère un utilisateur par son identifiant.
+pub async fn get_user(user_id: Uuid) -> Result<Option<user::Model>, ServerFnError> {
+    user::Entity::find_by_id(user_id)
+        .one(get().await)
+        .await
+        .map_err(db_err)
+}
+
+/// Récupère un utilisateur par son adresse e-mail.
+pub async fn get_user_by_email(email: &str) -> Result<Option<user::Model>, ServerFnError> {
+    user::Entity::find()
+        .filter(user::Column::Email.eq(email))
+        .one(get().await)
+        .await
+        .map_err(db_err)
+}
+
+/// Récupère le nom d'utilisateur d'un utilisateur.
+pub async fn get_username(user_id: Uuid) -> Result<Option<String>, ServerFnError> {
+    user::Entity::find_by_id(user_id)
+        .select_only()
+        .column(user::Column::Username)
+        .into_tuple::<String>()
+        .one(get().await)
+        .await
+        .map_err(db_err)
+}
+
+/// Récupère le profil complet d'un utilisateur pour la page Mon Compte.
+pub async fn get_profile(user_id: Uuid) -> Result<UserProfile, ServerFnError> {
+    let user = get_user(user_id)
+        .await?
+        .ok_or_else(|| ServerFnError::new("Utilisateur introuvable"))?;
+
+    let games_lost = user.games_lost();
+    let win_ratio = user.win_ratio();
+    let rank = get_elo_rank(user.elo as u64).await?;
+
+    Ok(UserProfile {
+        email: user.email,
+        username: user.username,
+        member_since: user.member_since as u64,
+        elo: user.elo as u64,
+        best_elo: user.best_elo as u64,
+        games_played: user.games_played as u64,
+        games_won: user.games_won as u64,
+        games_lost,
+        win_ratio,
+        rank: Some(rank),
+    })
+}
+
+/// Parle avec la base de données et récupère les infos sur les utilisateurs.
 pub async fn get_leaderboard_cards(
     search_query: String,
     sort_method: LeaderboardSortMethod,
     current_page: u64,
 ) -> Result<Vec<LeaderboardUserCard>, ServerFnError> {
-    let db = get().await;
-
-    let query_clause = if !search_query.is_empty() {
-        "WHERE username @1@ $search"
-    } else {
-        ""
-    };
-
+    // Le rang est calculé sur la totalité des joueurs, puis la recherche et la
+    // pagination sont appliquées : le classement affiché reste donc global.
     let sort_clause = match sort_method {
-        LeaderboardSortMethod::Elo => "ORDER BY elo DESC, games_played DESC",
-        LeaderboardSortMethod::GamesPlayed => "ORDER BY games_played DESC, elo DESC",
-        LeaderboardSortMethod::GamesWon => "ORDER BY games_won DESC, elo DESC",
-        LeaderboardSortMethod::WinRatio => "ORDER BY win_ratio DESC, elo DESC",
+        LeaderboardSortMethod::Elo => "elo DESC, games_played DESC",
+        LeaderboardSortMethod::GamesPlayed => "games_played DESC, elo DESC",
+        LeaderboardSortMethod::GamesWon => "games_won DESC, elo DESC",
+        LeaderboardSortMethod::WinRatio => "win_ratio DESC, elo DESC",
     };
 
-    let query =
-        format!("SELECT * FROM user {query_clause} {sort_clause} LIMIT $limit START $start");
+    let sql = format!(
+        r#"
+        WITH ranked_users AS (
+            SELECT
+                username,
+                elo,
+                best_elo,
+                games_played,
+                games_won,
+                games_lost,
+                win_ratio,
+                RANK() OVER (ORDER BY elo DESC) AS rank
+            FROM users
+        )
+        SELECT * FROM ranked_users
+        WHERE ($1 = '' OR username ILIKE $2)
+        ORDER BY {sort_clause}
+        LIMIT $3 OFFSET $4
+        "#
+    );
 
-    let mut cards: Vec<LeaderboardUserCard> = db
-        .query(query)
-        .bind(("limit", USER_PAGE_SIZE))
-        .bind(("start", current_page * USER_PAGE_SIZE))
-        .bind(("search", search_query))
-        .await
-        .map_err(|e| ServerFnError::new(e.to_string()))?
-        .take(0)
-        .map_err(|e| ServerFnError::new(e.to_string()))?;
+    let pattern = format!("%{}%", escape_like(&search_query));
+    let offset = current_page.saturating_mul(USER_PAGE_SIZE) as i64;
 
-    // Fill with the rank
-    for card in &mut cards {
-        card.rank = Some(get_elo_rank(card.elo).await?)
-    }
-
-    Ok(cards)
-}
-
-/// Recherche un utilisateur dans la database
-/// Retourne une liste de `USER_PAGE_SIZE` utilisateurs qui correspondent à la recherche
-pub async fn search_user(search_query: &str) -> Result<Vec<UserSearchItem>, ServerFnError> {
-    let db = get().await;
-
-    let items: Vec<UserSearchItem> = db
-        .query("SELECT * FROM user WHERE username @1@ $search LIMIT $limit")
-        .bind(("search", search_query))
-        .bind(("limit", USER_PAGE_SIZE))
-        .await
-        .map_err(|e| ServerFnError::new(e.to_string()))?
-        .take(0)
-        .map_err(|e| ServerFnError::new(e.to_string()))?;
-
-    Ok(items)
-}
-
-/// Retourne le classement à partir de l'elo, il n'y a que besoin de l'elo
-pub async fn get_elo_rank(elo: u64) -> Result<u64, ServerFnError> {
-    let db = get().await;
-    let higher_count: Option<u64> = db
-        .query("count(SELECT VALUE id FROM user WHERE elo > $this_elo)+1")
-        .bind(("this_elo", elo))
-        .await
-        .map_err(|e| ServerFnError::new(e.to_string()))?
-        .take(0)
-        .map_err(|e| ServerFnError::new(e.to_string()))?;
-    higher_count.ok_or(ServerFnError::new(
-        "Couldn't get the user's rank".to_string(),
+    let rows = LeaderboardRow::find_by_statement(Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        sql,
+        [
+            search_query.into(),
+            pattern.into(),
+            (USER_PAGE_SIZE as i64).into(),
+            offset.into(),
+        ],
     ))
+    .all(get().await)
+    .await
+    .map_err(db_err)?;
+
+    Ok(rows
+        .into_iter()
+        .map(|row| LeaderboardUserCard {
+            username: row.username,
+            elo: row.elo.max(0) as u64,
+            best_elo: row.best_elo.max(0) as u64,
+            games_played: row.games_played.max(0) as u64,
+            games_won: row.games_won.max(0) as u64,
+            games_lost: row.games_lost.max(0) as u64,
+            win_ratio: row.win_ratio as f32,
+            rank: Some(row.rank.max(1) as u64),
+        })
+        .collect())
 }
 
-/// Enregistre une partie dans la base de donnée
-/// oups je crois que c'est exactement la même description que l'API function
+#[derive(FromQueryResult)]
+struct LeaderboardRow {
+    username: String,
+    elo: i64,
+    best_elo: i64,
+    games_played: i64,
+    games_won: i64,
+    games_lost: i64,
+    win_ratio: f64,
+    rank: i64,
+}
+
+/// Recherche un utilisateur dans la base de données.
+/// Retourne une liste de `USER_PAGE_SIZE` utilisateurs qui correspondent à la recherche.
+pub async fn search_user(search_query: &str) -> Result<Vec<UserSearchItem>, ServerFnError> {
+    let pattern = format!("%{}%", escape_like(search_query));
+
+    let rows = user::Entity::find()
+        .select_only()
+        .column(user::Column::Username)
+        .column(user::Column::Elo)
+        .filter(user::Column::Username.ilike(pattern))
+        .order_by_desc(user::Column::Elo)
+        .limit(USER_PAGE_SIZE)
+        .into_tuple::<(String, i64)>()
+        .all(get().await)
+        .await
+        .map_err(db_err)?;
+
+    Ok(rows
+        .into_iter()
+        .map(|(username, elo)| UserSearchItem {
+            username,
+            elo: elo.max(0) as u64,
+        })
+        .collect())
+}
+
+/// Retourne le classement à partir de l'elo, il n'y a que besoin de l'elo.
+pub async fn get_elo_rank(elo: u64) -> Result<u64, ServerFnError> {
+    let higher_count = user::Entity::find()
+        .filter(user::Column::Elo.gt(elo as i64))
+        .count(get().await)
+        .await
+        .map_err(db_err)?;
+
+    Ok(higher_count + 1)
+}
+
+/// Enregistre une partie dans la base de données.
 pub async fn register_game(
-    user_id: UserId,
+    user_id: Uuid,
     sent_game: GameSendItem,
 ) -> Result<Result<(), String>, ServerFnError> {
-    let db = get().await;
-
-    if let Some(game_record) = get_recent_game(&user_id).await? {
-        let remaining_secs = (game_record.played_at + GAME_REGISTRY_COOLDOWN)
+    if let Some(recent_game) = get_recent_game(user_id).await? {
+        let remaining_secs = (recent_game.played_at as u64 + GAME_REGISTRY_COOLDOWN)
             .saturating_sub(utils::current_time_secs());
         return Ok(Err(format!(
             "Tu pourras entrer une nouvelle partie dans {:02}:{:02}",
@@ -201,12 +261,12 @@ pub async fn register_game(
 
     let [left_team_users, right_team_users] =
         match map_usernames(sent_game.left_team, sent_game.right_team).await? {
-            Ok(vs) => vs,
+            Ok(teams) => teams,
             Err(e) => return Ok(Err(e)),
         };
 
-    if left_team_users.iter().all(|u| u.id != user_id)
-        && right_team_users.iter().all(|u| u.id != user_id)
+    if !left_team_users.iter().any(|user| user.id == user_id)
+        && !right_team_users.iter().any(|user| user.id == user_id)
     {
         return Ok(Err("L'utilisateur entrant la partie doit jouer".to_string()));
     }
@@ -218,286 +278,217 @@ pub async fn register_game(
         right_team_users,
     );
 
-    let game_id = GameId::new_v7();
-    let won_score = std::cmp::max(sent_game.left_score, sent_game.right_score);
-    let lost_score = std::cmp::min(sent_game.left_score, sent_game.right_score);
+    let game_id = Uuid::now_v7();
+    let won_score = sent_game.left_score.max(sent_game.right_score);
+    let lost_score = sent_game.left_score.min(sent_game.right_score);
     let played_at = utils::current_time_secs();
-    let game_record = GameRecord {
-        id: game_id,
-        lost_score,
-        won_score,
-        players: updates.clone(),
-        recorded_by: user_id,
-        played_at,
+    let game = game::ActiveModel {
+        id: Set(game_id),
+        won_score: Set(won_score as i64),
+        lost_score: Set(lost_score as i64),
+        recorded_by: Set(user_id),
+        played_at: Set(played_at as i64),
     };
 
-    db.query(
-        "BEGIN TRANSACTION;
-            CREATE $game_id CONTENT $game_record;
-            FOR $u IN $updates {
-                UPDATE ONLY $u.id SET
-                    elo = math::max([0, elo + $u.elo_change]),
-                    games_played += 1,
-                    games_won += IF $u.won THEN 1 ELSE 0 END;
-            };
-        COMMIT TRANSACTION;",
-    )
-    .bind(("updates", updates))
-    .bind(("game_id", game_record.id.0.clone()))
-    .bind(("game_record", game_record))
+    let db = get().await;
+    let transaction = db.begin().await.map_err(db_err)?;
+
+    game::Entity::insert(game)
+        .exec(&transaction)
+        .await
+        .map_err(db_err)?;
+
+    game_player::Entity::insert_many(updates.iter().map(|update| game_player::ActiveModel {
+        game_id: Set(game_id),
+        user_id: Set(update.id),
+        elo_change: Set(update.elo_change),
+        won: Set(update.won),
+    }))
+    .exec(&transaction)
     .await
-    .map_err(|e| ServerFnError::new(e.to_string()))?;
+    .map_err(db_err)?;
+
+    for update in &updates {
+        // Les compteurs et l'elo sont mis à jour de façon atomique pour éviter
+        // qu'une partie simultanée n'écrase les statistiques de l'autre.
+        transaction
+            .execute_raw(Statement::from_sql_and_values(
+                DbBackend::Postgres,
+                r#"
+                UPDATE users
+                SET elo = GREATEST(0, elo + $1),
+                    games_played = games_played + 1,
+                    games_won = games_won + $2
+                WHERE id = $3
+                "#,
+                [
+                    update.elo_change.into(),
+                    i64::from(update.won).into(),
+                    update.id.into(),
+                ],
+            ))
+            .await
+            .map_err(db_err)?;
+    }
+
+    transaction.commit().await.map_err(db_err)?;
 
     Ok(Ok(()))
 }
 
-/// Vérifie si un utilisateur à rentrée une partie récemment
-/// Pour éviter les spams
-async fn get_recent_game(user_id: &UserId) -> Result<Option<GameRecord>, ServerFnError> {
-    let db = get().await;
+/// Vérifie si un utilisateur a rentré une partie récemment, pour éviter les spams.
+async fn get_recent_game(user_id: Uuid) -> Result<Option<game::Model>, ServerFnError> {
+    let cutoff_time = utils::current_time_secs().saturating_sub(GAME_REGISTRY_COOLDOWN) as i64;
 
-    let cutoff_time = utils::current_time_secs() - GAME_REGISTRY_COOLDOWN;
-
-    let recent_game: Option<GameRecord> = db
-        .query(
-            "SELECT * FROM ONLY game WHERE players.*.id CONTAINS $user_id AND played_at >= $cutoff_time ORDER BY played_at DESC LIMIT 1;",
-        )
-        .bind(("user_id", user_id.clone()))
-        .bind(("cutoff_time", cutoff_time))
+    game::Entity::find()
+        .join(JoinType::InnerJoin, game::Relation::GamePlayer.def())
+        .filter(game_player::Column::UserId.eq(user_id))
+        .filter(game::Column::PlayedAt.gte(cutoff_time))
+        .order_by_desc(game::Column::PlayedAt)
+        .one(get().await)
         .await
-        .map_err(|e| ServerFnError::new(e.to_string()))?
-        .take(0)
-        .map_err(|e| ServerFnError::new(e.to_string()))?;
-
-    Ok(recent_game)
+        .map_err(db_err)
 }
 
-/// Associe à chaque nom d'utilisateur son `user_id` et son `elo`
-/// Pour le calcul d'elo par la suite
+/// Associe à chaque nom d'utilisateur son `user_id` et son `elo`,
+/// pour le calcul d'elo par la suite.
 async fn map_usernames(
     left_team: Vec<String>,
     right_team: Vec<String>,
 ) -> Result<Result<[Vec<UserWithElo>; 2], String>, ServerFnError> {
-    let db = get().await;
+    let usernames: Vec<String> = left_team.iter().chain(right_team.iter()).cloned().collect();
 
-    let left_team_len = left_team.len();
-    let right_team_len = right_team.len();
-
-    let mut response = db
-        .query("SELECT id, elo FROM user WHERE username IN $left_team; SELECT id, elo FROM user WHERE username IN $right_team;")
-        .bind(("left_team", left_team))
-        .bind(("right_team", right_team))
+    let users = user::Entity::find()
+        .filter(user::Column::Username.is_in(usernames))
+        .all(get().await)
         .await
-        .map_err(|e| ServerFnError::new(e.to_string()))?;
+        .map_err(db_err)?;
 
-    let left_team_users: Vec<UserWithElo> = response
-        .take(0)
-        .map_err(|e| ServerFnError::new(e.to_string()))?;
-    let right_team_users: Vec<UserWithElo> = response
-        .take(1)
-        .map_err(|e| ServerFnError::new(e.to_string()))?;
+    let mut users_by_name: HashMap<String, UserWithElo> = users
+        .into_iter()
+        .map(|user| {
+            (
+                user.username,
+                UserWithElo {
+                    id: user.id,
+                    elo: user.elo.max(0) as u64,
+                },
+            )
+        })
+        .collect();
 
-    if left_team_users.len() != left_team_len || right_team_users.len() != right_team_len {
+    let take_team = |names: Vec<String>, users_by_name: &mut HashMap<String, UserWithElo>| {
+        names
+            .into_iter()
+            .map(|name| users_by_name.remove(&name))
+            .collect::<Option<Vec<_>>>()
+    };
+
+    let Some(left_team_users) = take_team(left_team, &mut users_by_name) else {
         return Ok(Err(
             "Un ou plusieurs joueurs n'existent pas dans la base de données".to_string(),
         ));
-    }
+    };
+    let Some(right_team_users) = take_team(right_team, &mut users_by_name) else {
+        return Ok(Err(
+            "Un ou plusieurs joueurs n'existent pas dans la base de données".to_string(),
+        ));
+    };
 
     Ok(Ok([left_team_users, right_team_users]))
 }
 
-/// Récupère l'historique des parties
+/// Récupère l'historique des parties d'un utilisateur.
 pub async fn get_game_history(
-    user_id: UserId,
+    user_id: Uuid,
     current_page: u64,
 ) -> Result<Vec<GameSearchItem>, ServerFnError> {
-    let db = get().await;
+    let offset = current_page.saturating_mul(GAME_PAGE_SIZE) as i64;
 
-    let history = db
-        .query(
-            "SELECT 
-                players[WHERE id = $user_id][0].elo_change AS elo_change,
-                won_score,
-                lost_score,
-                played_at,
-                players[WHERE won = true].{ username: id.username, elo_change } AS won_players,
-                players[WHERE won = false].{ username: id.username, elo_change } AS lost_players
-            FROM game
-            WHERE players.*.id CONTAINS $user_id
-            ORDER BY played_at DESC
-            LIMIT $limit START $start;",
-        )
-        .bind(("user_id", user_id))
-        .bind(("limit", GAME_PAGE_SIZE))
-        .bind(("start", current_page * GAME_PAGE_SIZE))
+    let games = GameHistoryRow::find_by_statement(Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        r#"
+        SELECT g.id, gp.elo_change, g.won_score, g.lost_score, g.played_at
+        FROM games g
+        JOIN game_players gp ON gp.game_id = g.id
+        WHERE gp.user_id = $1
+        ORDER BY g.played_at DESC
+        LIMIT $2 OFFSET $3
+        "#,
+        [
+            user_id.into(),
+            (GAME_PAGE_SIZE as i64).into(),
+            offset.into(),
+        ],
+    ))
+    .all(get().await)
+    .await
+    .map_err(db_err)?;
+
+    if games.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let game_ids: Vec<Uuid> = games.iter().map(|game| game.id).collect();
+    let participants = game_player::Entity::find()
+        .find_also_related(user::Entity)
+        .filter(game_player::Column::GameId.is_in(game_ids))
+        .all(get().await)
         .await
-        .map_err(|e| ServerFnError::new(e.to_string()))?
-        .take(0)
-        .map_err(|e| ServerFnError::new(e.to_string()))?;
+        .map_err(db_err)?;
 
-    Ok(history)
-}
+    let mut players_by_game: HashMap<Uuid, (Vec<PlayerGameLog>, Vec<PlayerGameLog>)> =
+        HashMap::new();
 
-/// Alors là y'a 160 lignes d'implémention du trait qui permet de récupérer des structs directement depuis la database
-/// C'est absolument pas intéressant mais c'est nécessaire...
-impl SurrealValue for LeaderboardUserCard {
-    fn kind_of() -> Kind {
-        Kind::Any
-    }
-
-    fn into_value(self) -> Value {
-        panic!("You should never write a LeaderboardUserCard into the database");
-    }
-
-    fn from_value(value: Value) -> Result<Self, surrealdb::Error>
-    where
-        Self: Sized,
-    {
-        match value {
-            Value::Object(mut obj) => Ok(Self {
-                username: SurrealValue::from_value(obj.remove("username").unwrap_or(Value::None))?,
-                elo: SurrealValue::from_value(obj.remove("elo").unwrap_or(Value::None))?,
-                best_elo: SurrealValue::from_value(obj.remove("best_elo").unwrap_or(Value::None))?,
-                games_played: SurrealValue::from_value(
-                    obj.remove("games_played").unwrap_or(Value::None),
-                )?,
-                games_won: SurrealValue::from_value(
-                    obj.remove("games_won").unwrap_or(Value::None),
-                )?,
-                games_lost: SurrealValue::from_value(
-                    obj.remove("games_lost").unwrap_or(Value::None),
-                )?,
-                win_ratio: SurrealValue::from_value(
-                    obj.remove("win_ratio").unwrap_or(Value::None),
-                )?,
-                rank: None,
-            }),
-            other => <()>::from_value(other).map(|_| unreachable!()),
+    for (participation, user) in participants {
+        let Some(user) = user else {
+            continue;
+        };
+        let player = PlayerGameLog {
+            username: user.username,
+            elo_change: participation.elo_change,
+        };
+        let entry = players_by_game.entry(participation.game_id).or_default();
+        if participation.won {
+            entry.0.push(player);
+        } else {
+            entry.1.push(player);
         }
     }
-}
-impl SurrealValue for UserProfile {
-    fn kind_of() -> Kind {
-        Kind::Any
-    }
 
-    fn into_value(self) -> Value {
-        panic!("You should never write a UserProfile into the database");
-    }
+    Ok(games
+        .into_iter()
+        .map(|game| {
+            let (mut won_players, mut lost_players) =
+                players_by_game.remove(&game.id).unwrap_or_default();
+            won_players.sort_by(|a, b| a.username.cmp(&b.username));
+            lost_players.sort_by(|a, b| a.username.cmp(&b.username));
 
-    fn from_value(value: Value) -> Result<Self, surrealdb::Error>
-    where
-        Self: Sized,
-    {
-        match value {
-            Value::Object(mut obj) => Ok(Self {
-                email: SurrealValue::from_value(obj.remove("email").unwrap_or(Value::None))?,
-                username: SurrealValue::from_value(obj.remove("username").unwrap_or(Value::None))?,
-                member_since: SurrealValue::from_value(
-                    obj.remove("member_since").unwrap_or(Value::None),
-                )?,
-                elo: SurrealValue::from_value(obj.remove("elo").unwrap_or(Value::None))?,
-                best_elo: SurrealValue::from_value(obj.remove("best_elo").unwrap_or(Value::None))?,
-                games_played: SurrealValue::from_value(
-                    obj.remove("games_played").unwrap_or(Value::None),
-                )?,
-                games_won: SurrealValue::from_value(
-                    obj.remove("games_won").unwrap_or(Value::None),
-                )?,
-                games_lost: SurrealValue::from_value(
-                    obj.remove("games_lost").unwrap_or(Value::None),
-                )?,
-                win_ratio: SurrealValue::from_value(
-                    obj.remove("win_ratio").unwrap_or(Value::None),
-                )?,
-                rank: None,
-            }),
-            other => <()>::from_value(other).map(|_| unreachable!()),
-        }
-    }
+            GameSearchItem {
+                elo_change: game.elo_change,
+                won_score: game.won_score.max(0) as u64,
+                lost_score: game.lost_score.max(0) as u64,
+                won_players,
+                lost_players,
+                played_at: game.played_at.max(0) as u64,
+            }
+        })
+        .collect())
 }
 
-impl SurrealValue for UserSearchItem {
-    fn kind_of() -> Kind {
-        Kind::Any
-    }
-
-    fn into_value(self) -> Value {
-        panic!("You should never write a UserSearchItem into the database");
-    }
-
-    fn from_value(value: Value) -> Result<Self, surrealdb::Error>
-    where
-        Self: Sized,
-    {
-        match value {
-            Value::Object(mut obj) => Ok(Self {
-                username: SurrealValue::from_value(obj.remove("username").unwrap_or(Value::None))?,
-                elo: SurrealValue::from_value(obj.remove("elo").unwrap_or(Value::None))?,
-            }),
-            other => <()>::from_value(other).map(|_| unreachable!()),
-        }
-    }
+#[derive(FromQueryResult)]
+struct GameHistoryRow {
+    id: Uuid,
+    elo_change: i64,
+    won_score: i64,
+    lost_score: i64,
+    played_at: i64,
 }
-impl SurrealValue for PlayerGameLog {
-    fn kind_of() -> Kind {
-        Kind::Any
-    }
 
-    fn into_value(self) -> Value {
-        panic!("You should never write a UserGameLog into the database");
-    }
-
-    fn from_value(value: Value) -> Result<Self, surrealdb::Error>
-    where
-        Self: Sized,
-    {
-        match value {
-            Value::Object(mut obj) => Ok(Self {
-                username: SurrealValue::from_value(obj.remove("username").unwrap_or(Value::None))?,
-                elo_change: SurrealValue::from_value(
-                    obj.remove("elo_change").unwrap_or(Value::None),
-                )?,
-            }),
-            other => <()>::from_value(other).map(|_| unreachable!()),
-        }
-    }
-}
-impl SurrealValue for GameSearchItem {
-    fn kind_of() -> Kind {
-        Kind::Any
-    }
-
-    fn into_value(self) -> Value {
-        panic!("You should never write a GameSearchItem into the database");
-    }
-
-    fn from_value(value: Value) -> Result<Self, surrealdb::Error>
-    where
-        Self: Sized,
-    {
-        match value {
-            Value::Object(mut obj) => Ok(Self {
-                elo_change: SurrealValue::from_value(
-                    obj.remove("elo_change").unwrap_or(Value::None),
-                )?,
-                won_score: SurrealValue::from_value(
-                    obj.remove("won_score").unwrap_or(Value::None),
-                )?,
-                lost_score: SurrealValue::from_value(
-                    obj.remove("lost_score").unwrap_or(Value::None),
-                )?,
-                won_players: SurrealValue::from_value(
-                    obj.remove("won_players").unwrap_or(Value::None),
-                )?,
-                lost_players: SurrealValue::from_value(
-                    obj.remove("lost_players").unwrap_or(Value::None),
-                )?,
-                played_at: SurrealValue::from_value(
-                    obj.remove("played_at").unwrap_or(Value::None),
-                )?,
-            }),
-            other => <()>::from_value(other).map(|_| unreachable!()),
-        }
-    }
+/// Échappe les caractères spéciaux d'un motif `LIKE`/`ILIKE`.
+fn escape_like(input: &str) -> String {
+    input
+        .replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
 }

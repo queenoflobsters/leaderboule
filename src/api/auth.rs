@@ -40,7 +40,7 @@ pub async fn login(email: String, password: String) -> Result<Result<(), String>
         }
         // SCENARIO 4 : User exists in DB but has no credentials in DB
         UserAuthTry::NonexistentCredentials(user_id) => {
-            match auth::credentials::create(&user_id, &password).await? {
+            match auth::credentials::create(user_id, &password).await? {
                 Ok(()) => Ok(Err("Mot de passe réinitialisé avec succès".to_string())),
                 Err(e) => Ok(Err(e)),
             }
@@ -68,7 +68,7 @@ pub async fn change_username(
         return Err(ServerFnError::new("User is not authenticated"));
     };
 
-    auth::account::change_username(&session_record.user_id, &new_username, &password).await
+    auth::account::change_username(session_record.user_id, &new_username, &password).await
 }
 
 /// Demande pour changer de mot de passe
@@ -83,5 +83,5 @@ pub async fn change_password(
         return Err(ServerFnError::new("User is not authenticated"));
     };
 
-    auth::credentials::change_password(&session_record.user_id, &old_password, &new_password).await
+    auth::credentials::change_password(session_record.user_id, &old_password, &new_password).await
 }

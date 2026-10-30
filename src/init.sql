@@ -1,142 +1,93 @@
--- I. define the user table
-DEFINE TABLE IF NOT EXISTS user;
+-- Schéma PostgreSQL de Leaderboule.
+--
+-- Les dates sont stockées en secondes UNIX (BIGINT) pour rester compatibles
+-- avec le reste de l'application, et les anciens champs calculés de SurrealDB
+-- sont désormais des colonnes générées par PostgreSQL.
 
--- email field constraints
-DEFINE FIELD IF NOT EXISTS email ON TABLE user
-    TYPE string
-    VALUE string::trim($value)
-    ASSERT string::is_email($value);
+CREATE TABLE users (
+    id UUID PRIMARY KEY,
+    email TEXT NOT NULL,
+    username TEXT NOT NULL,
+    member_since BIGINT NOT NULL,
+    elo BIGINT NOT NULL DEFAULT 400,
+    best_elo BIGINT NOT NULL DEFAULT 400,
+    games_played BIGINT NOT NULL DEFAULT 0,
+    games_won BIGINT NOT NULL DEFAULT 0,
+    games_lost BIGINT GENERATED ALWAYS AS (games_played - games_won) STORED,
+    win_ratio DOUBLE PRECISION GENERATED ALWAYS AS (
+        CASE
+            WHEN games_played > 0 THEN games_won::double precision * 100.0 / games_played
+            ELSE 0.0
+        END
+    ) STORED,
+    CONSTRAINT users_email_unique UNIQUE (email),
+    CONSTRAINT users_username_unique UNIQUE (username),
+    CONSTRAINT users_email_format CHECK (
+        email ~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$'
+    ),
+    CONSTRAINT users_username_length CHECK (char_length(username) BETWEEN 3 AND 32),
+    CONSTRAINT users_elo_positive CHECK (elo >= 0),
+    CONSTRAINT users_best_elo_positive CHECK (best_elo >= 0),
+    CONSTRAINT users_games_positive CHECK (games_played >= 0),
+    CONSTRAINT users_wins_valid CHECK (games_won >= 0 AND games_won <= games_played)
+);
 
--- username field constraints
-DEFINE FIELD IF NOT EXISTS username ON TABLE user 
-    TYPE string 
-    VALUE string::trim($value) 
-    ASSERT string::len($value) >= 3 AND string::len($value) <= 32;
+CREATE INDEX users_leaderboard_elo_idx ON users (elo DESC, games_played DESC);
+CREATE INDEX users_leaderboard_games_played_idx ON users (games_played DESC, elo DESC);
+CREATE INDEX users_leaderboard_games_won_idx ON users (games_won DESC, elo DESC);
+CREATE INDEX users_win_ratio_idx ON users (win_ratio DESC, elo DESC);
 
--- elo constraint (must be >= 0)
-DEFINE FIELD IF NOT EXISTS elo ON TABLE user
-    TYPE int
-    DEFAULT 400
-    ASSERT $value >= 0;
+-- Maintient le record d'élo sans avoir à y penser dans le code applicatif.
+CREATE FUNCTION users_sync_best_elo() RETURNS trigger AS $$
+BEGIN
+    NEW.best_elo := GREATEST(NEW.best_elo, NEW.elo);
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 
--- games played constraint (>= 0 and >= games won)
-DEFINE FIELD IF NOT EXISTS games_played ON TABLE user
-    TYPE int
-    DEFAULT 0
-    ASSERT $value >= 0 AND $value >= $this.games_won;
+CREATE TRIGGER users_sync_best_elo
+    BEFORE INSERT OR UPDATE OF elo ON users
+    FOR EACH ROW
+    EXECUTE FUNCTION users_sync_best_elo();
 
--- games won constraints (>= 0 and <= games played)
-DEFINE FIELD IF NOT EXISTS games_won ON TABLE user
-    TYPE int
-    DEFAULT 0
-    ASSERT $value >= 0 AND $value <= $this.games_played;
+CREATE TABLE games (
+    id UUID PRIMARY KEY,
+    won_score BIGINT NOT NULL,
+    lost_score BIGINT NOT NULL,
+    recorded_by UUID NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
+    played_at BIGINT NOT NULL,
+    CONSTRAINT games_scores_valid CHECK (
+        won_score BETWEEN 0 AND 13
+        AND lost_score BETWEEN 0 AND 13
+        AND won_score > lost_score
+    )
+);
 
--- define username analyzer for searching
-DEFINE ANALYZER IF NOT EXISTS user_search_analyzer
-    TOKENIZERS class
-    FILTERS lowercase, ascii, edgengram(1, 20);
+CREATE INDEX games_played_at_idx ON games (played_at DESC);
 
--- AUTO-COMPUTED: games_lost 
-DEFINE FIELD IF NOT EXISTS games_lost ON TABLE user
-    COMPUTED games_played - games_won
-    TYPE int;
+CREATE TABLE game_players (
+    game_id UUID NOT NULL REFERENCES games (id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
+    elo_change BIGINT NOT NULL,
+    won BOOLEAN NOT NULL,
+    PRIMARY KEY (game_id, user_id)
+);
 
--- AUTO-COMPUTED: win_ratio 
-DEFINE FIELD IF NOT EXISTS win_ratio ON TABLE user
-    COMPUTED IF games_played > 0
-        THEN (games_won * 100.0) / games_played
-        ELSE 0.0
-    END
-    TYPE float;
+CREATE INDEX game_players_user_id_idx ON game_players (user_id, game_id);
 
+CREATE TABLE sessions (
+    id UUID PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    expires_at BIGINT NOT NULL,
+    CONSTRAINT sessions_expires_at_positive CHECK (expires_at > 0)
+);
 
--- AUTO-COMPUTED: best elo
-DEFINE FIELD IF NOT EXISTS best_elo ON TABLE user
-    TYPE int
-    DEFAULT 400
-    VALUE math::max([$this.elo, $before OR 0]);
+CREATE INDEX sessions_user_id_idx ON sessions (user_id);
+CREATE INDEX sessions_expires_at_idx ON sessions (expires_at);
 
--- Indexes for unique values and fast searching
-DEFINE INDEX IF NOT EXISTS idx_user_leaderboard ON TABLE user FIELDS elo, games_played;
-DEFINE INDEX IF NOT EXISTS idx_user_username_unique ON TABLE user FIELDS username UNIQUE;
-DEFINE INDEX IF NOT EXISTS idx_user_email_unique ON TABLE user FIELDS email UNIQUE;
-DEFINE INDEX IF NOT EXISTS idx_user_search ON TABLE user FIELDS username FULLTEXT ANALYZER user_search_analyzer;
-
-
--- II. define the game table
-DEFINE TABLE IF NOT EXISTS game SCHEMALESS;
-
-DEFINE FIELD IF NOT EXISTS won_score ON TABLE game
-    TYPE int
-    ASSERT $value >= 0 AND $value <= 13 AND $value > $this.lost_score;
-
-DEFINE FIELD IF NOT EXISTS lost_score ON TABLE game
-    TYPE int
-    ASSERT $value >= 0 AND $value <= 13 AND $value < $this.won_score;
-
-DEFINE FIELD IF NOT EXISTS players ON TABLE game
-    TYPE array
-    ASSERT array::len($value) >= 2;
-
-DEFINE FIELD IF NOT EXISTS recorded_by ON TABLE game 
-    TYPE record<user>
-    ASSERT $value != NONE AND record::exists($value);
-
-DEFINE FIELD IF NOT EXISTS played_at ON TABLE game
-    TYPE int;
-
--- AUTO-COMPUTED : games won
-DEFINE FIELD IF NOT EXISTS won_players ON TABLE game
-    COMPUTED $this.players[WHERE won = true];
--- AUTO-COMPUTED : games lost
-DEFINE FIELD IF NOT EXISTS lost_players ON TABLE game
-    COMPUTED $this.players[WHERE won = false];
-
-DEFINE INDEX IF NOT EXISTS idx_game_played_at ON TABLE game FIELDS played_at;
-DEFINE INDEX IF NOT EXISTS idx_game_players ON TABLE game FIELDS players.*.id;
-
--- III. define the session table
-DEFINE TABLE IF NOT EXISTS session SCHEMALESS;
-
--- user_id field constraints
-DEFINE FIELD IF NOT EXISTS user_id ON TABLE session
-    TYPE record<user>
-    ASSERT $value != NONE AND record::exists($value)
-    REFERENCE ON DELETE CASCADE;
-
--- expires_at field constraints
-DEFINE FIELD IF NOT EXISTS expires_at ON TABLE session
-    TYPE number
-    ASSERT $value > 0;
-
-DEFINE INDEX IF NOT EXISTS idx_session_user ON TABLE session FIELDS user_id;
-DEFINE INDEX IF NOT EXISTS idx_session_expires ON TABLE session FIELDS expires_at;
-
-
--- IV. define the user_cred table
-DEFINE TABLE IF NOT EXISTS user_cred SCHEMAFULL;
-
--- link to the user table
-DEFINE FIELD IF NOT EXISTS user_id ON TABLE user_cred
-    TYPE record<user>
-    ASSERT $value != NONE AND record::exists($value)
-    REFERENCE ON DELETE CASCADE;
-
--- ensure a user can only have ONE cred record
-DEFINE INDEX IF NOT EXISTS idx_user_cred_user_id_unique ON TABLE user_cred FIELDS user_id UNIQUE;
-
--- password hash constraints
-DEFINE FIELD IF NOT EXISTS password_hash ON TABLE user_cred
-    TYPE string
-    ASSERT string::starts_with($value, '$argon2');
-
--- 4. Audit timestamps
--- DEFINE FIELD IF NOT EXISTS created_at ON TABLE user_auth 
---     TYPE datetime 
---     DEFAULT time::now() 
---     READONLY;
-
--- DEFINE FIELD IF NOT EXISTS updated_at ON TABLE user_auth 
---     TYPE datetime 
---     DEFAULT time::now() 
---     VALUE time::now();
+CREATE TABLE user_creds (
+    id UUID PRIMARY KEY,
+    user_id UUID NOT NULL UNIQUE REFERENCES users (id) ON DELETE CASCADE,
+    password_hash TEXT NOT NULL,
+    CONSTRAINT user_creds_password_hash_valid CHECK (password_hash LIKE '$argon2%')
+);

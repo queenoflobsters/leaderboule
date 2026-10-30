@@ -1,45 +1,41 @@
 services:
   # -------------------------------------------------------------
-  # Leaderboule - Dioxus Application
+  # PostgreSQL Database
   # -------------------------------------------------------------
-  surrealdb:
-    image: surrealdb/surrealdb:v3.2.0
-    user: root
-    command: start --bind 0.0.0.0:8000 surrealkv:/data/boules.db
-    ports:
-      - "8000:8000" # For me to access the db anytime
-    volumes:
-      - db_data:/data:z
-    restart: unless-stopped
+  postgres:
+    image: postgres:17-alpine
     environment:
-      - SURREAL_USER=${DATABASE_USER}
-      - SURREAL_PASS=${DATABASE_PASS}
+      POSTGRES_USER: ${POSTGRES_USER:-leaderboule}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-leaderboule}
+      POSTGRES_DB: ${POSTGRES_DB:-leaderboule}
+    ports:
+      - "5432:5432" # For me to access the db anytime
+    volumes:
+      - db_data:/var/lib/postgresql/data:z
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "/surreal", "is-ready"]
-      start_period: 2s
-      interval: 3s
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      start_period: 5s
+      interval: 5s
       timeout: 3s
-      retries: 5
-      
+      retries: 10
 
   # -------------------------------------------------------------
-  # SurrealDB Database
+  # Leaderboule - Dioxus Application
   # -------------------------------------------------------------
   app:
     build: .
     image: registry.gitlab.com/sia-insa-lyon/va/petanque-insa-club:latest
-    init: true 
+    init: true
     environment:
-      - DATABASE_URL=surrealdb:8000
-      - DATABASE_USER=${DATABASE_USER:-root}
-      - DATABASE_PASS=${DATABASE_PASS:-root}
+      - DATABASE_URL=postgres://${POSTGRES_USER:-leaderboule}:${POSTGRES_PASSWORD:-leaderboule}@postgres:5432/${POSTGRES_DB:-leaderboule}
       - HELLOASSO_CLIENT_ID=${HELLOASSO_CLIENT_ID}
       - HELLOASSO_CLIENT_SECRET=${HELLOASSO_CLIENT_SECRET}
     ports:
       - "8080:8080"
     restart: unless-stopped
     depends_on:
-      surrealdb:
+      postgres:
         condition: service_healthy
 
 volumes:

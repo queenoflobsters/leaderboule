@@ -1,7 +1,7 @@
 # Leaderboule
 
 Classement et système d'Elo pour le club de pétanque de l'INSA de Lyon
-Écrit en Rust avec Dioxus
+Écrit en Rust avec Dioxus, PostgreSQL et SeaORM.
 
 ## Comment exécuter
 
@@ -10,25 +10,28 @@ Les variables d'environnement suivantes doivent être accessibles
 Soit présentes dans un `.env` soit setup depuis la CI/CD pipeline
 
 ```bash
-# Pour la databse
-DATABASE_URL="127.0.0.1:8000" # Développement uniquement
-DATABASE_USER="root"
-DATABASE_PASS="root"
+# Pour la base de données
+DATABASE_URL="postgres://leaderboule:leaderboule@127.0.0.1:5432/leaderboule"
+POSTGRES_USER="leaderboule"
+POSTGRES_PASSWORD="leaderboule"
+POSTGRES_DB="leaderboule"
 # Pour l'intégration avec Helloasso
-HELLOASSO_CLIENT_ID="..." 
+HELLOASSO_CLIENT_ID="..."
 HELLOASSO_CLIENT_SECRET="..."
 ```
 
+Le schéma est créé et migré automatiquement au démarrage du serveur
+(voir `src/init.sql` et `src/server/migration.rs`).
 
 ### Développement
 
 - Installe le langage [Rust](https://rust-lang.org/tools/install/)
-- Installe [SurrealDB](https://surrealdb.com/surrealdb/install)
+- Installe [Docker](https://docs.docker.com/engine/install/)
 - Installe [Dioxus](https://dioxuslabs.com/learn/0.7/getting_started/)
 
-- Lance la databse :
+- Lance PostgreSQL :
 ```bash
-./db_start.sh
+docker compose up -d postgres
 ```
 
 - Lance l'application
@@ -38,15 +41,16 @@ dx serve --addr 0.0.0.0 # Pour exposer sur le réseau local
 dx serve --release # Pour maximum de perfs
 ```
 
-La database sera stockée dans `./boules.db`
+Les données sont conservées dans le volume Docker `db_data`.
 
 ### Avec Docker
 
-- Installe Docker et Docker Compose
-
 ```bash
-docker compose up --build 
+docker compose up --build
 ```
+
+L'application est disponible sur `http://localhost:8080` et PostgreSQL sur
+`localhost:5432`.
 
 ## Fonctionnalités
 - [x] Documentation
@@ -71,8 +75,7 @@ docker compose up --build
 - [ ] Changer le logo
 - [ ] CICD Pipeline QUI FONCTIONNE
 - [ ] Working Elo system (implémenter le job d'Anaé)
-- [ ] Investigate surrealkv instead of rocksdb
 
 Compter le nombre de lignes de code (j'aime bien faire ça)
 
-`wc -l src/client/* src/api/* src/server/* assets/style/* src/main.rs src/init.sql`
+`wc -l src/client/* src/api/* src/server/* src/server/entities/* assets/style/* src/main.rs src/init.sql`

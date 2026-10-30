@@ -17,15 +17,13 @@ services:
       - "traefik.http.services.leaderboule-app.loadbalancer.server.port=8080"
     environment:
       # Database connection
-      DATABASE_URL: leaderboule-db:8000
-      DATABASE_USER: ${DATABASE_USER}
-      DATABASE_PASS: ${DATABASE_PASS}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@leaderboule-db:5432/${POSTGRES_DB}
       # Helloasso API Interaction
       HELLOASSO_CLIENT_ID: ${HELLOASSO_CLIENT_ID}
       HELLOASSO_CLIENT_SECRET: ${HELLOASSO_CLIENT_SECRET}
       # App runtime settings
       PORT: 8080
-      IP: 0.0.0.0 # Exposes 
+      IP: 0.0.0.0 # Exposes
       TZ: Europe/Paris
     networks:
       - traefik-network
@@ -35,60 +33,27 @@ services:
         condition: service_healthy
 
   # -------------------------------------------------------------
-  # Database initializer
-  # (J'ai pas trouvé une meilleure manière de faire ça...)
-  # -------------------------------------------------------------
-  init-db-volume:
-    image: alpine:latest
-    # Starts as root
-    user: root
-    # Give the db container perms to write in it
-    command: chown -R 65532:65532 /data
-    volumes:
-      - leaderboule-data:/data:z
-    # Does that only once at the start
-    restart: "no"
-
-  # -------------------------------------------------------------
-  # Actual SurrealDB Database
+  # PostgreSQL Database
   # -------------------------------------------------------------
   leaderboule-db:
-    image: surrealdb/surrealdb:v3.2.0
-    # # traditionnal rocksdb backend
-    # command: start --bind 0.0.0.0:8000 rocksdb:/data/boules.db
-    # # surrealkv backend instead (pure Rust)
-    command: start --bind 0.0.0.0:8000 surrealkv:/data/boules.db
+    image: postgres:17-alpine
     restart: always
     pull_policy: if_not_present
-    # Exposes database for remote access with Surrealist software
-    # I'm doing this to moderate the database when in need
-    labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=traefik-network"
-      # /!\ I need to know if this will work /!\
-      - "traefik.http.routers.leaderboule-db.rule=Host(`db.${HOST}`)"
-      # # Switch cert resolver when local
-      # - "traefik.http.routers.leaderboule-db.tls=true"
-      - "traefik.http.routers.leaderboule-db.tls.certresolver=httpchallenge"
-      - "traefik.http.services.leaderboule-db.loadbalancer.server.port=8000"
     environment:
-      SURREAL_USER: ${DATABASE_USER}
-      SURREAL_PASS: ${DATABASE_PASS}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
       TZ: Europe/Paris
     volumes:
-      - leaderboule-data:/data:z
+      - leaderboule-data:/var/lib/postgresql/data:z
     networks:
-      - traefik-network
       - leaderboule-network
-    depends_on:
-      init-db-volume:
-        condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "/surreal", "is-ready"]
-      start_period: 1s
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      start_period: 5s
       interval: 5s
-      timeout: 1s
-      retries: 5
+      timeout: 3s
+      retries: 10
 
 # -------------------------------------------------------------
 # Networks

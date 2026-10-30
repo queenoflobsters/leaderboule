@@ -1,6 +1,6 @@
 use crate::client::{
-    account::Account, leaderboard::Leaderboard, login::Login, logout::Logout, navbar::Navbar,
-    page_not_found::PageNotFound, new_game::NewGame, history::History,
+    account::Account, history::History, leaderboard::Leaderboard, login::Login, logout::Logout,
+    navbar::Navbar, new_game::NewGame, page_not_found::PageNotFound,
 };
 use dioxus::prelude::*;
 
@@ -23,8 +23,7 @@ pub enum Route {
     #[route("/newgame")]
     NewGame,
     #[route("/history")]
-    History
-    // TODO make page not found
+    History, // TODO make page not found
 }
 
 impl Route {
@@ -40,6 +39,7 @@ impl Route {
         }
     }
 
+    #[cfg(feature = "server")]
     pub fn is_public(&self) -> bool {
         // I know about matches! I just don't like it
         match self {

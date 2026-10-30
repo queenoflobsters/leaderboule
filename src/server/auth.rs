@@ -1,6 +1,10 @@
 use crate::{
     client::route::Route,
-    server::{db, elo, helloasso, utils},
+    server::{
+        db, elo,
+        entities::{session as session_entity, user, user_cred},
+        helloasso, utils,
+    },
 };
 use argon2::{
     password_hash::{rand_core::OsRng, SaltString},
@@ -24,205 +28,142 @@ use reqwest::{
     header::{HeaderMap, ACCEPT},
     Method,
 };
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
-use surrealdb::types::{RecordId, RecordIdKey, SurrealValue, Uuid};
+use uuid::Uuid;
 
-/// Identifiant d'une session utilisateur dans la database
-#[derive(Debug, Serialize, Deserialize, Clone, SurrealValue)]
+/// Identifiant d'une session utilisateur dans la base de données.
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
 #[serde(transparent)]
-pub struct SessionToken(pub RecordId);
-
-/// Identifiant d'un utilisateur dans la database
-#[derive(Debug, Serialize, Deserialize, Clone, SurrealValue, PartialEq)]
-#[serde(transparent)]
-pub struct UserId(pub RecordId);
-
-/// Identifiant du mot de passe de l'utilisateur dans la database
-#[derive(Debug, Serialize, Deserialize, Clone, SurrealValue)]
-#[serde(transparent)]
-pub struct UserCredId(pub RecordId);
+pub struct SessionToken(pub Uuid);
 
 impl SessionToken {
-    /// Create a new SessionToken with a Uuid v7
+    /// Crée un nouveau `SessionToken` avec un UUID v7.
     pub fn new_v7() -> Self {
-        Self(RecordId::new("session", Uuid::new_v7()))
-    }
-
-    /// Renvoie l'UUID interne de l'identifiant
-    pub fn to_uuid(&self) -> Result<Uuid, ServerFnError> {
-        match self.0.key {
-            RecordIdKey::Uuid(uuid) => Ok(uuid),
-            RecordIdKey::String(ref s) => Ok(s.parse().map_err(|e| ServerFnError::new(e))?),
-            _ => Err(ServerFnError::new("Unable to parse SessionToken into Uuid")),
-        }
+        Self(Uuid::now_v7())
     }
 }
 
-impl std::str::FromStr for SessionToken {
-    // apprécie l'anglais mon reuf j'étais dans ma zone
-    // this is absolutly dreadful but honestly hilarous I couldn't get the uuid crate from a surrealdb re-export so I just converted it to a ServerFnError without even having access to the type
-    type Err = ServerFnError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(SessionToken(RecordId::new(
-            "session",
-            s.parse::<Uuid>()
-                .map_err(|e| ServerFnError::new(e.to_string()))?,
-        )))
+impl std::fmt::Display for SessionToken {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(formatter)
     }
 }
 
-impl UserId {
-    /// Create a new UserId with a Uuid v7
-    pub fn new_v7() -> Self {
-        Self(RecordId::new("user", Uuid::new_v7()))
+impl FromStr for SessionToken {
+    type Err = uuid::Error;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        value.parse().map(Self)
     }
 }
 
-// impl From<UserId> for UserCredId { fn from(value: UserId) -> Self { Self(RecordId::new("user_cred", value.0.key)) } }
-impl UserCredId {
-    /// Create a new UserId with a Uuid v7
-    pub fn new_v7() -> Self {
-        Self(RecordId::new("user_cred", Uuid::new_v7()))
-    }
-}
-
-/// Modèle d'une session utilisateur dans la databse
-#[derive(Debug, Serialize, Deserialize, Clone, SurrealValue)]
-pub struct SessionRecord {
-    pub id: SessionToken,
-    pub user_id: UserId,
-    pub expires_at: u64,
-}
-
-/// Modèle du mot de passe de l'utilisateur dans la database
-#[derive(Debug, Serialize, Deserialize, Clone, SurrealValue)]
-pub struct UserCredRecord {
-    pub id: UserCredId,
-    pub user_id: UserId,
-    pub password_hash: String,
-}
-
-/// Résultat d'une tentative de connexion 
+/// Résultat d'une tentative de connexion.
 pub enum UserAuthTry {
-    Success(UserId),
-    NonexistentCredentials(UserId),
+    Success(Uuid),
+    NonexistentCredentials(Uuid),
     WrongPassword,
     NonexistentAccount,
 }
 
-/// Gère la session de l'utilisateur
-/// Comment ça fonctionne ?
-/// - L'utilisateur se connecte
-/// - On crée un session_token
-/// - On le range dans la db en l'associant à l'utilisateur
-/// - On stocke le session token dans un cookie
-/// QUAND L'UTILISATEUR REVIENT
-/// - On check le cookie
-/// - On récupère le session_token
-/// - On regarde si il match à un utilisateur et si il a pas expiré
-/// - Si oui, le middleware associe le `user_id` avec le `session_token`
+/// Gère la session de l'utilisateur.
+///
+/// - L'utilisateur se connecte et un `session_token` est créé.
+/// - Le token est enregistré en base, associé à l'utilisateur.
+/// - Le token est stocké dans un cookie.
+/// - À chaque requête le middleware vérifie le cookie et retrouve la session.
 pub mod session {
     use super::*;
 
-    /// Récupère un `SessionToken` directement depuis les headers
+    /// Récupère un `SessionToken` directement depuis les headers.
     pub fn parse_token_from_cookie(headers: &HeaderMap) -> Option<SessionToken> {
         let cookie_header = headers.get(axum::http::header::COOKIE)?.to_str().ok()?;
-        // Split by ';'
-        for cookie in cookie_header.split(';') {
-            // Split by '=' in two parts
-            let mut parts = cookie.trim().splitn(2, '=');
-            if let (Some(k), Some(v)) = (parts.next(), parts.next()) {
-                if k == "session_token" {
-                    return Some(v.parse().ok()?);
-                }
-            }
-        }
-        None
+
+        cookie_header.split(';').find_map(|cookie| {
+            let (key, value) = cookie.trim().split_once('=')?;
+            (key == "session_token")
+                .then(|| value.parse().ok())
+                .flatten()
+        })
     }
 
-    /// Enlève l'entrée de session si jamais l'utilisateur se déconnecte
+    /// Supprime la session courante de la base de données.
     pub async fn delete() -> Result<(), ServerFnError> {
-        let session_record = get_from_extension().ok_or(ServerFnError::new(
-            "Unable to get SessionRecord from FullstackCtx",
-        ))?;
-        let _deleted: Option<SessionRecord> = db::get()
+        let session_record = get_from_extension()
+            .ok_or_else(|| ServerFnError::new("Unable to get SessionRecord from FullstackCtx"))?;
+
+        session_entity::Entity::delete_by_id(session_record.id)
+            .exec(db::get().await)
             .await
-            .delete(&session_record.id.0)
-            .await
-            .map_err(|e| ServerFnError::new(e.to_string()))?;
+            .map_err(db::db_err)?;
 
         Ok(())
     }
 
-    /// Récupère la session depuis la database
-    pub async fn get_from_db(session_token: &SessionToken) -> Option<SessionRecord> {
-        let db = db::get().await;
-        let session_match: Option<SessionRecord> = db.select(&session_token.0).await.ok().flatten();
-        if let Some(session) = session_match {
-            debug!("AUTH : found session_record");
-            if session.expires_at > utils::current_time_secs() {
-                return Some(session);
-            } else {
-                debug!("AUTH : session_record is expired");
-                let _deleted: Option<SessionRecord> =
-                    db.delete(&session_token.0).await.ok().flatten();
-            }
-        }
-
-        debug!("AUTH : did not found session_token in db");
-        None
-    }
-
-    /// Récupère le `SessionRecord` depuis l'extension axum
-    /// qui a été populé par le middleware
-    pub fn get_from_extension() -> Option<SessionRecord> {
-        let ctx = FullstackContext::current()?;
-        ctx.extension::<SessionRecord>()
-    }
-
-    /// Génère un SessionRecord et le range dans la database bien au chaud
-    pub async fn create(user_id: UserId) -> Result<SessionToken, ServerFnError> {
-        let session_token = SessionToken::new_v7();
-        let db = db::get().await;
-        let expires_at = utils::current_time_secs() + utils::THIRTY_DAYS_IN_SECS;
-
-        let session = SessionRecord {
-            id: session_token.clone(),
-            user_id,
-            expires_at,
-        };
-
-        let _created: Option<SessionRecord> = db
-            .create(&session_token.0)
-            .content(session.clone())
+    /// Récupère la session depuis la base de données.
+    pub async fn get_from_db(session_token: &SessionToken) -> Option<session_entity::Model> {
+        let session_match = session_entity::Entity::find_by_id(session_token.0)
+            .one(db::get().await)
             .await
-            .map_err(|e| ServerFnError::new(e.to_string()))?;
+            .ok()
+            .flatten()?;
 
-        debug!("AUTH : created session record : {:?}", &session);
+        if session_match.expires_at > utils::current_time_secs() as i64 {
+            debug!("AUTH : found session_record");
+            Some(session_match)
+        } else {
+            debug!("AUTH : session_record is expired");
+            let _ = session_entity::Entity::delete_by_id(session_match.id)
+                .exec(db::get().await)
+                .await;
+            None
+        }
+    }
+
+    /// Récupère le `SessionRecord` depuis l'extension axum,
+    /// qui a été populée par le middleware.
+    pub fn get_from_extension() -> Option<session_entity::Model> {
+        let ctx = FullstackContext::current()?;
+        ctx.extension::<session_entity::Model>()
+    }
+
+    /// Génère une session et la range dans la base de données.
+    pub async fn create(user_id: Uuid) -> Result<SessionToken, ServerFnError> {
+        let session_token = SessionToken::new_v7();
+        let expires_at = (utils::current_time_secs() + utils::THIRTY_DAYS_IN_SECS) as i64;
+
+        session_entity::ActiveModel {
+            id: Set(session_token.0),
+            user_id: Set(user_id),
+            expires_at: Set(expires_at),
+        }
+        .insert(db::get().await)
+        .await
+        .map_err(db::db_err)?;
+
+        debug!("AUTH : created session record : {:?}", session_token);
 
         Ok(session_token)
     }
 }
 
-/// Gestion des cookie
-/// (juste pour stocker le `session_token` hein, on vole pas les données des gens ici)
+/// Gestion des cookies.
+///
+/// On y stocke uniquement le `session_token`.
 pub mod cookie {
     use super::*;
 
-    /// Génère le header HTTP du cookie et le range dans la réponse 
+    /// Génère le header HTTP du cookie et le range dans la réponse.
     pub fn create_in_response(session_token: SessionToken) -> Result<(), ServerFnError> {
-        // Generate cookie header directly
         let cookie_str = format!(
-            // "session_token={}; Path=/; HttpOnly; SameSite=Lax; Max-Age={}",
             "session_token={}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age={}",
-            session_token.to_uuid()?,
+            session_token.0,
             utils::THIRTY_DAYS_IN_SECS
         );
 
-        // Modify response headers via context
         let ctx = FullstackContext::current()
-            .ok_or(ServerFnError::new("Unable to get FullstackContext"))?;
+            .ok_or_else(|| ServerFnError::new("Unable to get FullstackContext"))?;
         let header_val =
             HeaderValue::from_str(&cookie_str).map_err(|e| ServerFnError::new(e.to_string()))?;
         ctx.add_response_header(SET_COOKIE, header_val);
@@ -235,13 +176,12 @@ pub mod cookie {
         Ok(())
     }
 
-    /// Péremption un cookie en générant un nouveau vide
-    /// (grosse grosse phrase)
+    /// Péremption un cookie en générant un nouveau vide.
     pub fn clear_from_response() -> Result<(), ServerFnError> {
         let clear_cookie = "session_token=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0";
 
         if let Some(ctx) = FullstackContext::current() {
-            if let Ok(val) = HeaderValue::from_str(&clear_cookie) {
+            if let Ok(val) = HeaderValue::from_str(clear_cookie) {
                 ctx.add_response_header(SET_COOKIE, val);
             }
         }
@@ -250,31 +190,27 @@ pub mod cookie {
     }
 }
 
-/// AAAAAH QU'EST-CE QUE J'AI GALÉRÉ SUR LE MIDDLEWARE
+/// Middleware d'authentification.
 pub mod middleware {
 
     use super::*;
 
-    /// Axum Middleware: Remplie le SesssionToken si le cookie est valide
-    /// Mode opératoire :
-    /// - Regarde ce que la requête veut, si c'est un fichier public alors basta
-    /// - Regarde le cookie, regarde si il est dans la database
-    /// - Si oui, remplie l'extension Axum avec le `session_token` et le `user_id`
-    /// - Si non, regarde le type de requête
-    /// - Si ça navigue vers une page privée alors renvoie au login
-    /// - Si ça nagigue vers un page public alors continuez mademoiselle
-    /// - Si ça nagigue PAS vers une page alors c'est appel API et ça passe
+    /// Axum Middleware : remplit la session si le cookie est valide.
+    ///
+    /// - Les assets statiques sont servis sans vérification.
+    /// - Si le cookie correspond à une session valide, la session est ajoutée
+    ///   aux extensions de la requête.
+    /// - Une navigation vers une page privée non authentifiée redirige vers le
+    ///   login. Les appels d'API passent et décideront eux-mêmes quoi faire.
     pub async fn server_auth_guard(mut req: Request, next: Next) -> Response {
         let path = req.uri().path();
         debug!("GUARD : request to path : {}", path);
 
-        // 1. Ignore public paths
         if is_static_asset(path) {
             debug!("GUARD : static asset, forwarding request");
             return next.run(req).await;
         }
 
-        // 2. Check for authentification
         debug!("GUARD : checking for auth");
         if let Some(session_token) = session::parse_token_from_cookie(req.headers()) {
             debug!(
@@ -282,26 +218,24 @@ pub mod middleware {
                 &session_token
             );
             if let Some(session_record) = session::get_from_db(&session_token).await {
-                // Insert axum extension if authed
                 debug!("GUARD : session_record found in db, inserting axum extension and forwarding request");
                 req.extensions_mut().insert(session_record);
                 return next.run(req).await;
             }
         }
 
-        // 3. Request is unauthenticated: redirect or forward based on navigation
         let is_nav = is_page_navigation(req.headers(), req.method());
         let route = Route::from_str(path).unwrap_or(Route::PageNotFound { segments: vec![] });
         if is_nav && !route.is_public() {
             return Redirect::to(&Route::Login.to_string()).into_response();
         }
+
         debug!("GUARD : public route, or api call, forwarding request");
         next.run(req).await
     }
 
-    /// Vérifie si la requête correspond à un asset public
+    /// Vérifie si la requête correspond à un asset public.
     fn is_static_asset(path: &str) -> bool {
-        // 1. public assets and folders
         if path.starts_with("/public")
             || path.starts_with("/_dioxus")
             || path.starts_with("/assets")
@@ -310,36 +244,27 @@ pub mod middleware {
             return true;
         }
 
-        // 2. Any path ending in a file extension
-        // (This seem to be a horrible hack but it is what internet recommends...)
-        if let Some(filename) = path.split('/').last() {
-            if filename.contains('.') {
-                return true;
-            }
-        }
-
-        false
-
-        // 3. Public routes
+        // Tout chemin terminé par une extension de fichier est un asset.
+        path.rsplit('/')
+            .next()
+            .is_some_and(|filename| filename.contains('.'))
     }
 
-    /// Vérifie si la requête correspond à une navigation
+    /// Vérifie si la requête correspond à une navigation.
     fn is_page_navigation(headers: &HeaderMap, method: &Method) -> bool {
-        // 1. Sec-Fetch-Mode is "navigate" for full page loads / URL bar entries
         if let Some(mode) = headers.get("sec-fetch-mode") {
             if mode == "navigate" {
                 return true;
             }
         }
 
-        // 2. Sec-Fetch-Dest is "document" for HTML documents
-        if let Some(mode) = headers.get("sec-fetch-dest") {
-            if mode == "document" {
+        if let Some(dest) = headers.get("sec-fetch-dest") {
+            if dest == "document" {
                 return true;
             }
         }
 
-        // 3. Fallback for older clients: GET requests asking for text/html
+        // Fallback pour les vieux clients : GET qui demande du HTML.
         if method == Method::GET {
             if let Some(accept) = headers.get(ACCEPT).and_then(|h| h.to_str().ok()) {
                 if accept.contains("text/html") {
@@ -355,80 +280,58 @@ pub mod middleware {
 pub mod account {
     use super::*;
 
-    /// Vérifie si l'utilisateur existe et si le mot de passe est le bon
+    /// Vérifie si l'utilisateur existe et si le mot de passe est le bon.
     pub async fn exists(email: &str, password: &str) -> Result<UserAuthTry, ServerFnError> {
         debug!("AUTH : searching inside db for user with email `{}`", email);
 
-        let Some(user_record) = get_user_record(email).await? else {
+        let Some(user_record) = db::get_user_by_email(email).await? else {
             debug!("AUTH : user not found in db");
             return Ok(UserAuthTry::NonexistentAccount);
         };
 
         debug!("AUTH : user found in db");
-
-        credentials::verify(&user_record.id, password).await
+        credentials::verify(user_record.id, password).await
     }
 
-    /// Récupère le `UserRecord` depuis la databse à partir de l'email
-    pub async fn get_user_record(email: &str) -> Result<Option<db::UserRecord>, ServerFnError> {
-        let db = db::get().await;
-
-        let user_match: Option<db::UserRecord> = db
-            .query("SELECT * FROM user WHERE email = $email")
-            .bind(("email", email))
-            .await
-            .map_err(|e| ServerFnError::new(e.to_string()))?
-            .take(0)
-            .map_err(|e| ServerFnError::new(e.to_string()))?;
-
-        Ok(user_match)
-    }
-
-    /// Appel le sous-système Helloasso pour vérifier si l'utilisateur est un adhérent
-    /// Si oui, créer le mot de passe dans la base de donnée et le `UserRecord`
+    /// Appelle Helloasso pour vérifier si l'utilisateur est un adhérent.
+    /// Si oui, crée le `UserRecord` et son mot de passe.
     pub async fn try_create(
         email: &str,
         password: &str,
-    ) -> Result<Result<UserId, String>, ServerFnError> {
+    ) -> Result<Result<Uuid, String>, ServerFnError> {
         debug!("AUTH : asking Helloasso if `{}` is an adherent", email);
         let helloasso_payer = helloasso::get_adherent(email).await?;
 
         match helloasso_payer {
-            // There is no adherent with this email
             None => {
                 debug!("AUTH : Helloasso has no adherent with this email, connexion refused");
                 Ok(Err(
-                    "Cet email n'est pas dans enregistré chez Helloasso".to_string()
+                    "Cet email n'est pas enregistré chez Helloasso".to_string()
                 ))
             }
-            // 3. There is an adherent with this email
-            // Create an account and return the user id
             Some(payer) => {
                 debug!("AUTH : Helloasso has user with email `{}`", email);
                 if let Err(e) = credentials::verify_password_validity(password) {
                     return Ok(Err(e));
                 }
+
                 let user_id = create_user_record_in_db(payer).await?;
-                credentials::create(&user_id, password)
+                credentials::create(user_id, password)
                     .await?
-                    .map_err(|s| ServerFnError::new(s))?;
+                    .map_err(ServerFnError::new)?;
+
                 Ok(Ok(user_id))
             }
         }
     }
 
-    /// Créer le `UserRecord` grâce aux données de Helloasso
-    async fn create_user_record_in_db(
-        payer: helloasso::PayerInfo,
-    ) -> Result<UserId, ServerFnError> {
+    /// Crée le `UserRecord` grâce aux données de Helloasso.
+    async fn create_user_record_in_db(payer: helloasso::PayerInfo) -> Result<Uuid, ServerFnError> {
         debug!("AUTH : creating user with : {:?}", &payer);
 
-        let db = db::get().await;
-
-        let id = UserId::new_v7();
         let email = payer
             .email
-            .ok_or(ServerFnError::new("Empty E-Mail field in helloasso answer"))?;
+            .ok_or_else(|| ServerFnError::new("Empty E-Mail field in helloasso answer"))?;
         let username = {
             match (payer.first_name, payer.last_name) {
                 (None, None) => {
@@ -442,63 +345,59 @@ pub mod account {
             }
         };
 
-        let member_since = utils::current_time_secs();
-
-        let user_record = db::UserRecord {
-            id: id.clone(),
-            email,
-            username,
-            member_since,
-            elo: elo::DEFAULT_ELO,
-            games_played: 0,
-            games_won: 0,
-        };
-
-        let _created: Option<db::UserRecord> = db
-            .create(&id.0)
-            .content(user_record)
-            .await
-            .map_err(|e| ServerFnError::new(e.to_string()))?;
+        let user_id = Uuid::now_v7();
+        user::ActiveModel {
+            id: Set(user_id),
+            email: Set(email),
+            username: Set(username),
+            member_since: Set(utils::current_time_secs() as i64),
+            elo: Set(elo::DEFAULT_ELO as i64),
+            best_elo: Set(elo::DEFAULT_ELO as i64),
+            games_played: Set(0),
+            games_won: Set(0),
+        }
+        .insert(db::get().await)
+        .await
+        .map_err(db::db_err)?;
 
         debug!(
             "AUTH : successfully created user inside db with id {:?}",
-            id
+            user_id
         );
-        Ok(id)
+
+        Ok(user_id)
     }
 
-    /// Change le nom d'utilisateur 
+    /// Change le nom d'utilisateur.
     pub async fn change_username(
-        user_id: &UserId,
+        user_id: Uuid,
         new_username: &str,
         password: &str,
     ) -> Result<Result<(), String>, ServerFnError> {
-        let db = db::get().await;
-
-        let UserAuthTry::Success(_) = credentials::verify(&user_id, password).await? else {
+        let UserAuthTry::Success(_) = credentials::verify(user_id, password).await? else {
             return Ok(Err("Mot de passe incorrect".to_string()));
         };
 
         let username_trimmed = new_username.trim();
 
-        if let Err(e) = check_username_validity(username_trimmed).await? {
+        if let Err(e) = check_username_validity(username_trimmed, user_id).await? {
             return Ok(Err(e));
         }
 
-        let updated: Option<db::UserRecord> = db
-            .query("UPDATE ONLY $user_id SET username = $username")
-            .bind(("user_id", user_id.clone()))
-            .bind(("username", username_trimmed))
-            .await
-            .map_err(|e| ServerFnError::new(e.to_string()))?
-            .take(0)
-            .map_err(|e| ServerFnError::new(e.to_string()))?;
-
-        if updated.is_none() {
-            return Err(ServerFnError::new(
-                "Utilisateur voulant changer de nom d'utilisateur introuvable",
-            ));
+        user::ActiveModel {
+            id: Set(user_id),
+            username: Set(username_trimmed.to_owned()),
+            ..Default::default()
         }
+        .update(db::get().await)
+        .await
+        .map_err(|error| {
+            if error.to_string().contains("users_username_unique") {
+                ServerFnError::new("Ce nom d'utilisateur est déjà utilisé")
+            } else {
+                db::db_err(error)
+            }
+        })?;
 
         debug!(
             "AUTH : user `{:?}` changed username to `{}`",
@@ -508,25 +407,31 @@ pub mod account {
         Ok(Ok(()))
     }
 
-    /// Vérifie si le nom d'utilisateur est conforme
-    async fn check_username_validity(username: &str) -> Result<Result<(), String>, ServerFnError> {
-        let db = db::get().await;
+    /// Vérifie si le nom d'utilisateur est conforme.
+    async fn check_username_validity(
+        username: &str,
+        user_id: Uuid,
+    ) -> Result<Result<(), String>, ServerFnError> {
+        let length = username.chars().count();
 
-        if username.len() <= 3 {
+        if length < 3 {
             return Ok(Err("Nom d'utilisateur trop court".to_string()));
         }
 
-        if username.len() >= 32 {
+        if length > 32 {
             return Ok(Err("Nom d'utilisateur trop long".to_string()));
         }
 
-        let existing_user: Option<UserId> = db
-            .query("SELECT VALUE id FROM ONLY user WHERE username = $username")
-            .bind(("username", username))
+        let existing_user = user::Entity::find()
+            .select_only()
+            .column(user::Column::Id)
+            .filter(user::Column::Username.eq(username))
+            .filter(user::Column::Id.ne(user_id))
+            .into_tuple::<Uuid>()
+            .one(db::get().await)
             .await
-            .map_err(|e| ServerFnError::new(e.to_string()))?
-            .take(0)
-            .map_err(|e| ServerFnError::new(e.to_string()))?;
+            .map_err(db::db_err)?;
+
         if existing_user.is_some() {
             return Ok(Err("Ce nom d'utilisateur est déjà utilisé".to_string()));
         }
@@ -538,110 +443,117 @@ pub mod account {
 pub mod credentials {
     use super::*;
 
-    /// Crée un hash à partir d'un mot de passe
-    pub fn create_hash(password: &str) -> Result<String, ServerFnError> {
-        let salt = SaltString::generate(&mut OsRng);
+    /// Crée un hash à partir d'un mot de passe.
+    ///
+    /// Argon2 est volontairement exécuté sur un thread bloquant pour ne pas
+    /// ralentir le runtime asynchrone.
+    pub async fn create_hash(password: &str) -> Result<String, ServerFnError> {
+        let password = password.to_owned();
 
-        let argon2 = Argon2::default();
-
-        let password_hash = argon2
-            .hash_password(password.as_bytes(), &salt)
-            .map_err(|e| ServerFnError::new(e.to_string()))?;
-
-        Ok(password_hash.to_string())
+        tokio::task::spawn_blocking(move || {
+            let salt = SaltString::generate(&mut OsRng);
+            Argon2::default()
+                .hash_password(password.as_bytes(), &salt)
+                .map(|hash| hash.to_string())
+                .map_err(|e| e.to_string())
+        })
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))?
+        .map_err(ServerFnError::new)
     }
 
-    /// Vérifie si le mot de passe est bien le mot de passe de l'utilisateur
-    pub async fn verify(user_id: &UserId, password: &str) -> Result<UserAuthTry, ServerFnError> {
-        let db = db::get().await;
-
-        let user_cred_record_match: Option<UserCredRecord> = db
-            .query("SELECT * FROM ONLY user_cred WHERE user_id = $user_id")
-            .bind(("user_id", user_id.clone()))
+    /// Vérifie si le mot de passe est bien celui de l'utilisateur.
+    pub async fn verify(user_id: Uuid, password: &str) -> Result<UserAuthTry, ServerFnError> {
+        let user_cred_record = user_cred::Entity::find()
+            .filter(user_cred::Column::UserId.eq(user_id))
+            .one(db::get().await)
             .await
-            .map_err(|e| ServerFnError::new(e.to_string()))?
-            .take(0)
-            .map_err(|e| ServerFnError::new(e.to_string()))?;
+            .map_err(db::db_err)?;
 
-        let Some(user_cred_record) = user_cred_record_match else {
-            return Ok(UserAuthTry::NonexistentCredentials(user_id.clone()));
+        let Some(user_cred_record) = user_cred_record else {
+            return Ok(UserAuthTry::NonexistentCredentials(user_id));
         };
 
-        let Ok(parsed_hash) = PasswordHash::new(&user_cred_record.password_hash) else {
-            return Err(ServerFnError::new("Couldn't create hash from string in db"));
-        };
+        let password_hash = user_cred_record.password_hash;
+        let password = password.to_owned();
 
-        match Argon2::default().verify_password(password.as_bytes(), &parsed_hash) {
-            Ok(()) => Ok(UserAuthTry::Success(user_id.clone())),
-            Err(_) => Ok(UserAuthTry::WrongPassword),
+        let is_valid = tokio::task::spawn_blocking(move || {
+            let parsed_hash = PasswordHash::new(&password_hash).map_err(|e| e.to_string())?;
+            Ok::<bool, String>(
+                Argon2::default()
+                    .verify_password(password.as_bytes(), &parsed_hash)
+                    .is_ok(),
+            )
+        })
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))?
+        .map_err(|e| ServerFnError::new(format!("Hash de mot de passe invalide : {e}")))?;
+
+        if is_valid {
+            Ok(UserAuthTry::Success(user_id))
+        } else {
+            Ok(UserAuthTry::WrongPassword)
         }
     }
 
-    /// Vérifie la conformité d'un mot de passe
+    /// Vérifie la conformité d'un mot de passe.
     pub fn verify_password_validity(password: &str) -> Result<(), String> {
-        // TODO make this more strict
-        if password.len() < 8 {
+        if password.chars().count() < 8 {
             return Err("Mot de passe trop court".to_string());
         }
         Ok(())
     }
 
-    /// Crée un mot de passe et le fourrrrre dans la database
-    /// mmmh
+    /// Crée un mot de passe et le range dans la base de données.
     pub async fn create(
-        user_id: &UserId,
+        user_id: Uuid,
         password: &str,
     ) -> Result<Result<(), String>, ServerFnError> {
         if let Err(e) = verify_password_validity(password) {
             return Ok(Err(e));
         }
 
-        let db = db::get().await;
-        let user_cred_id = UserCredId::new_v7();
-        let password_hash = credentials::create_hash(password)?;
-        let user_cred_record = UserCredRecord {
-            id: user_cred_id.clone(),
-            user_id: user_id.clone(),
-            password_hash,
-        };
+        let password_hash = create_hash(password).await?;
 
-        let _created: Option<UserCredRecord> = db
-            .create(&user_cred_id.0)
-            .content(user_cred_record)
-            .await
-            .map_err(|e| ServerFnError::new(e.to_string()))?;
+        user_cred::ActiveModel {
+            id: Set(Uuid::now_v7()),
+            user_id: Set(user_id),
+            password_hash: Set(password_hash),
+        }
+        .insert(db::get().await)
+        .await
+        .map_err(db::db_err)?;
 
         Ok(Ok(()))
     }
 
-    /// Change le mot de passe
+    /// Change le mot de passe.
     pub async fn change_password(
-        user_id: &UserId,
+        user_id: Uuid,
         old_password: &str,
         new_password: &str,
     ) -> Result<Result<(), String>, ServerFnError> {
-        let db = db::get().await;
-
-        let UserAuthTry::Success(_) = credentials::verify(&user_id, old_password).await? else {
+        let UserAuthTry::Success(_) = verify(user_id, old_password).await? else {
             return Ok(Err("Mot de passe incorrect".to_string()));
         };
 
-        if new_password.len() < 8 {
-            return Ok(Err("Mot de passe trop court".to_string()));
+        if let Err(e) = verify_password_validity(new_password) {
+            return Ok(Err(e));
         }
 
-        let new_password_hash = credentials::create_hash(new_password)?;
+        let new_password_hash = create_hash(new_password).await?;
 
-        let updated: Option<UserCredRecord> = db
-            .query("UPDATE ONLY user_cred SET password_hash = $new_password_hash WHERE user_id = $user_id")
-            .bind(("new_password_hash", new_password_hash))
-            .bind(("user_id", user_id.clone().0))
+        let result = user_cred::Entity::update_many()
+            .col_expr(
+                user_cred::Column::PasswordHash,
+                sea_orm::sea_query::Expr::value(new_password_hash),
+            )
+            .filter(user_cred::Column::UserId.eq(user_id))
+            .exec(db::get().await)
             .await
-            .map_err(|e| ServerFnError::new(e.to_string()))?
-            .take(0)
-            .map_err(|e| ServerFnError::new(e.to_string()))?;
+            .map_err(db::db_err)?;
 
-        if updated.is_none() {
+        if result.rows_affected == 0 {
             return Err(ServerFnError::new(
                 "Cet utilisateur n'a aucun mot de passe enregistré. Absolument anormal",
             ));

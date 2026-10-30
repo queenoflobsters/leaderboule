@@ -64,7 +64,7 @@ RUN dx bundle --web --release && \
 # 1. Still Debian 13.6 for runtime
 FROM debian:trixie-slim AS runtime
 
-# 2. Install SSL certificates and runtime libraries needed by surrealdb/reqwest
+# 2. Install SSL certificates and runtime libraries needed by reqwest
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     libssl3 \
