@@ -45,17 +45,31 @@ fn main() {
 fn app() -> Element { rsx! { div { "dummy" } } }
 EOF
 
-# 9. Build all but ONLY dependencies
-RUN dx bundle --web --release && \
-    rm -rf src
+# 9. Build dependencies with a throwaway app
+RUN dx bundle --web --release
 
-# 10. NOW Copy the real source code
+# 10. Remove every artifact produced for the dummy app, while keeping the
+#     compiled dependencies. `COPY` preserves source mtimes from the host,
+#     which can make Cargo believe the dummy build is still up to date. If we
+#     only overwrite `src`, the dummy binary can therefore be served forever.
+RUN rm -rf src /app/target/dx && \
+    find /app/target -type f -name 'leaderboule*' -delete && \
+    find /app/target -type d -name 'leaderboule*' -prune -exec rm -rf {} +
+
+# 11. Copy the real source and make sure Cargo sees it as newer than the
+#     dependency build.
 COPY . .
 
-# 11. Build the real application
+RUN find src -exec touch {} + && \
+    touch Cargo.toml Cargo.lock Dioxus.toml
+
+# 12. Build the real application, then sanity-check that the produced server
+#     and wasm are the real app and not the dependency-cache dummy.
 RUN dx bundle --web --release && \
     mkdir -p /app/dist && \
-    cp -r /app/target/dx/leaderboule/release/web/* /app/dist/
+    cp -a /app/target/dx/leaderboule/release/web/. /app/dist/ && \
+    grep -aq "Tu pourras entrer une nouvelle partie" /app/dist/server && \
+    grep -aq "Nouvelle Partie" /app/dist/public/assets/*.wasm
 
 # -------------------------
 # --- STAGE 2 : runtime ---
