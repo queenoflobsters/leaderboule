@@ -1,8 +1,6 @@
 use crate::{api::db::current_user, client::route::Route};
 use dioxus::prelude::*;
 
-const NAVBAR_CSS: Asset = asset!("assets/style/navbar.css");
-const MAIN_CSS: Asset = asset!("assets/style/main.css");
 const HAMBURGER_SVG: Asset = asset!("assets/icons/hamburger.svg");
 const LEADERBOARD_SVG: Asset = asset!("assets/icons/leaderboard.svg");
 const ACCOUNT_SVG: Asset = asset!("assets/icons/account.svg");
@@ -23,7 +21,7 @@ pub fn Navbar() -> Element {
         #[cfg(target_arch = "wasm32")] // make rust-analyzer ignore the block
         #[cfg(feature = "web")]
         if let Some(window) = web_sys::window() {
-            if let Ok(Some(mq)) = window.match_media("(max-width: 50rem)") {
+            if let Ok(Some(mq)) = window.match_media("(max-width: 48rem)") {
                 if mq.matches() {
                     is_open.set(false);
                 }
@@ -32,19 +30,16 @@ pub fn Navbar() -> Element {
     };
 
     rsx! {
-            document::Stylesheet { href: MAIN_CSS }
-            document::Stylesheet { href: NAVBAR_CSS }
-
             // Top bar fixed at top
             header { class: "top-bar",
                 button {
                     class: if is_open() {"hamburger open"} else {"hamburger"},
-                    aria_label: "Open menu",
+                    r#type: "button",
+                    aria_label: "Ouvrir le menu",
                     onclick: move |_| is_open.toggle(),
                     img {
-                        style: "width: 1.75rem; height: 1.75rem;",
                         src: HAMBURGER_SVG,
-                        alt: "Menu",
+                        alt: "",
                     }
                 }
                 div { {current_route.title()} }

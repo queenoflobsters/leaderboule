@@ -1,7 +1,6 @@
 use crate::{api::db::global::{self, LeaderboardSortMethod, LeaderboardUserCard}, client::components::{page_switcher::PageSwitcher, search_banner::SearchBanner}};
 use dioxus::{prelude::*};
 
-const LEADERBOARD_CSS: Asset = asset!("assets/style/leaderboard.css");
 const TROPHY_SVG: Asset = asset!("assets/icons/trophy.svg");
 const BROKEN_HEART_SVG: Asset = asset!("assets/icons/broken-heart.svg");
 const TOTAL_SVG: Asset = asset!("assets/icons/total.svg");
@@ -16,8 +15,6 @@ pub fn Leaderboard() -> Element {
     let mut current_page = use_signal(|| 0);
 
     rsx! {
-        document::Stylesheet { href: LEADERBOARD_CSS }
-
         div { class: "leaderboard-container route-container",
 
             SearchBanner {

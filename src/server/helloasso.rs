@@ -19,9 +19,6 @@ use tokio::{sync::RwLock, time::Instant};
 
 const HELLOASSO_OAUTH_TOKEN_URL: &str = "https://api.helloasso.com/oauth2/token";
 const HELLOASSO_API_URL: &str = "https://api.helloasso.com/v5";
-const ASSOCIATION_SLUG: &str = "petanqu-insa-club";
-// WARNING TODO WARNING change this form slug
-const ASSO_FORM_SLUG: &str = "adhesion-2025-2026-petanqu-insa-club";
 static HELLOASSO_CLIENT: OnceLock<HelloassoClient> = OnceLock::new();
 
 /// Initialise la connexion Helloasso
@@ -29,7 +26,9 @@ pub fn get() -> &'static HelloassoClient {
     HELLOASSO_CLIENT.get_or_init(|| {
         let client_id = std::env::var("HELLOASSO_CLIENT_ID").unwrap();
         let client_secret = std::env::var("HELLOASSO_CLIENT_SECRET").unwrap();
-        HelloassoClient::new(client_id, client_secret)
+        let asso_slug = std::env::var("HELLOASSO_SLUG").unwrap();
+        let asso_form_slug = std::env::var("HELLOASSO_FORM_SLUG").unwrap();
+        HelloassoClient::new(client_id, client_secret, asso_slug, asso_form_slug)
     })
 }
 
@@ -56,6 +55,8 @@ pub struct HelloassoClient {
     client: reqwest::Client,
     client_id: String,
     client_secret: String,
+    asso_slug: String,
+    asso_form_slug: String,
     tokens: Arc<RwLock<Option<HelloassoTokens>>>,
 }
 
@@ -67,16 +68,12 @@ pub async fn get_adherent(email: &str) -> Result<Option<PayerInfo>, ServerFnErro
         .get_access_token()
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?;
-    let api_url = format!(
-        "{}/organizations/{}/forms/Membership/{}/items",
-        HELLOASSO_API_URL, ASSOCIATION_SLUG, ASSO_FORM_SLUG
-    );
 
     debug!("HA : requesting payers list from Helloasso");
 
     let response = get()
         .client
-        .get(&api_url)
+        .get(get().get_api_url())
         .bearer_auth(access_token)
         .query(&[
             ("userSearchKey", email),
@@ -97,13 +94,27 @@ pub async fn get_adherent(email: &str) -> Result<Option<PayerInfo>, ServerFnErro
 }
 
 impl HelloassoClient {
-    fn new(client_id: String, client_secret: String) -> Self {
+    fn new(
+        client_id: String,
+        client_secret: String,
+        asso_slug: String,
+        asso_form_slug: String,
+    ) -> Self {
         Self {
             client: reqwest::Client::new(),
             client_id,
             client_secret,
+            asso_slug,
+            asso_form_slug,
             tokens: Arc::new(RwLock::new(None)),
         }
+    }
+
+    fn get_api_url(&self) -> String {
+        format!(
+            "{}/organizations/{}/forms/Membership/{}/items",
+            HELLOASSO_API_URL, self.asso_slug, self.asso_form_slug
+        )
     }
 
     /// Retourne le token d'accès à l'API
@@ -229,4 +240,3 @@ impl HelloassoResponse {
         }
     }
 }
-

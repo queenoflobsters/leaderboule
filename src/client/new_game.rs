@@ -7,7 +7,6 @@ use crate::{
 };
 use dioxus::{core::Task, prelude::*};
 
-const NEW_GAME_CSS: Asset = asset!("assets/style/new_game.css");
 const MINUS_SVG: Asset = asset!("assets/icons/minus.svg");
 const PLUS_SVG: Asset = asset!("assets/icons/plus.svg");
 const CLOSE_SVG: Asset = asset!("assets/icons/close.svg");
@@ -64,7 +63,6 @@ pub fn NewGame() -> Element {
     };
 
     rsx! {
-        document::Stylesheet { href : NEW_GAME_CSS }
         div { class: "new-game-container route-container",
             div { class: "team-entry-container",
                 TeamEntry { title: left_title,
@@ -109,15 +107,18 @@ fn ScoreInput() -> Element {
     let mut score = use_context::<Signal<TeamScore>>();
     rsx! {
         div { class: "score-input",
-            button { class: "score-input-buttons",
+            button { class: "score-input-button",
+                r#type: "button",
+                aria_label: "Diminuer le score",
                 onclick: move |_| if score().0 > 0 { score.set(TeamScore(score().0 - 1)) },
-                img { class: "icon", src: MINUS_SVG}
+                img { class: "icon", src: MINUS_SVG, alt: "" }
             }
             input { class: "score-input-field",
                 r#type: "text",
                 inputmode: "numeric",
                 pattern: "[0-9]*",
                 placeholder: "0",
+                aria_label: "Score de l'équipe",
                 value: "{score().0}",
                 oninput: move |evt| {
                     let num = evt
@@ -131,8 +132,10 @@ fn ScoreInput() -> Element {
                 },
             }
             button { class: "score-input-button",
+                r#type: "button",
+                aria_label: "Augmenter le score",
                 onclick: move |_| if score().0 < 13 { score.set(TeamScore(score().0 + 1)) },
-                img { class: "icon", src: PLUS_SVG}
+                img { class: "icon", src: PLUS_SVG, alt: "" }
             }
 
         }
@@ -161,13 +164,15 @@ fn PlayerSelector() -> Element {
                 input { class: "player-selector-search-bar",
                     r#type: "search",
                     placeholder: "Rechercher...",
+                    aria_label: "Rechercher un joueur",
                     value: "{search_query}",
                     oninput: on_input,
                 }
                 button { class: "player-selector-clear",
+                    r#type: "button",
+                    aria_label: "Effacer la recherche",
                     onclick: move |_| search_query.set(String::new()),
-                    img { class: "icon", src: CLOSE_SVG}
-
+                    img { class: "icon", src: CLOSE_SVG, alt: "" }
                 }
 
             }
@@ -266,8 +271,10 @@ fn SelectedPlayersBox() -> Element {
                         on_click: move |_|()
                     }
                     button { class: "selected-player-remove-button",
+                        r#type: "button",
+                        aria_label: "Retirer ce joueur",
                         onclick: move |_| _ = team_members.write().0.remove(i),
-                        img { class: "icon", src: CLOSE_SVG}
+                        img { class: "icon", src: CLOSE_SVG, alt: "" }
                     }
                 }
             }}}
