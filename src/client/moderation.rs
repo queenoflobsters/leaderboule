@@ -64,22 +64,19 @@ pub fn Moderation() -> Element {
 
 #[component]
 fn ModerationDashboard() -> Element {
-    let mut search = use_signal(String::new);
+    // La valeur affichée dans l'input est immédiate ; la requête serveur,
+    // elle, est déclenchée après le debounce. Cela évite de faire suspendre
+    // tout le tableau de bord (et donc de perdre le champ de recherche).
+    let mut search_input = use_signal(String::new);
+    let mut search_query = use_signal(String::new);
     let mut debounce_task = use_signal(|| None::<Task>);
     let mut status_filter = use_signal(|| Option::<UserStatus>::None);
     let mut current_page = use_signal(|| 0u64);
     let mut refresh = use_signal(|| 0u64);
 
-    let users_resource = use_server_future(move || {
-        let _ = refresh();
-        let query = search();
-        let status = status_filter();
-        let page = current_page();
-        async move { moderation::moderation_list_users(query, status, page).await }
-    })?;
-
     let on_search = move |evt: Event<FormData>| {
         let value = evt.value();
+        search_input.set(value.clone());
         if let Some(task) = debounce_task.take() {
             task.cancel();
         }
@@ -87,7 +84,7 @@ fn ModerationDashboard() -> Element {
             #[cfg(target_arch = "wasm32")]
             gloo_timers::future::TimeoutFuture::new(300).await;
             current_page.set(0);
-            search.set(value);
+            search_query.set(value);
         });
         debounce_task.set(Some(task));
     };
@@ -122,6 +119,7 @@ fn ModerationDashboard() -> Element {
                     r#type: "search",
                     placeholder: "Rechercher par nom ou email...",
                     aria_label: "Rechercher un utilisateur",
+                    value: "{search_input}",
                     oninput: on_search,
                 }
                 div { class: "moderation-filters",
@@ -152,34 +150,65 @@ fn ModerationDashboard() -> Element {
                 }
             }
 
-            match users_resource() {
-                Some(Ok(user_page)) => rsx! {
-                    p { class: "moderation-count", "{user_page.total} compte(s)" }
-                    div { class: "moderation-user-list",
-                        for user in user_page.users.iter() {
-                            UserRow { key: "{user.id}", user: user.clone() }
-                        }
-                    }
-                    if user_page.users.is_empty() {
-                        p { class: "abnormal-state-message", "Aucun utilisateur trouvé" }
-                    }
-                    if user_page.total > 20 {
-                        PageSwitcher {
-                            current_page: user_page.page,
-                            current_page_change: move |value| current_page.set(value),
-                        }
-                    }
-                },
-                Some(Err(error)) => rsx! {
-                    p { class: "abnormal-state-message", "Erreur : {error}" }
-                },
-                None => rsx! {
-                    p { class: "abnormal-state-message", "Chargement..." }
-                },
+            SuspenseBoundary {
+                fallback: |_| rsx! { p { class: "abnormal-state-message", "Patience..." } },
+                UserList {
+                    search_query,
+                    status_filter,
+                    current_page,
+                    refresh,
+                    on_page_change: move |value| current_page.set(value),
+                }
             }
 
-            RecentAudit { refresh }
+            SuspenseBoundary {
+                fallback: |_| rsx! {},
+                RecentAudit { refresh }
+            }
         }
+    }
+}
+
+#[component]
+fn UserList(
+    search_query: ReadSignal<String>,
+    status_filter: ReadSignal<Option<UserStatus>>,
+    current_page: ReadSignal<u64>,
+    refresh: ReadSignal<u64>,
+    on_page_change: EventHandler<u64>,
+) -> Element {
+    let users_resource = use_server_future(move || {
+        let _ = refresh();
+        let query = search_query();
+        let status = status_filter();
+        let page = current_page();
+        async move { moderation::moderation_list_users(query, status, page).await }
+    })?;
+
+    match users_resource() {
+        Some(Ok(user_page)) => rsx! {
+            p { class: "moderation-count", "{user_page.total} compte(s)" }
+            div { class: "moderation-user-list",
+                for user in user_page.users.iter() {
+                    UserRow { key: "{user.id}", user: user.clone() }
+                }
+            }
+            if user_page.users.is_empty() {
+                p { class: "abnormal-state-message", "Aucun utilisateur trouvé" }
+            }
+            if user_page.total > 20 {
+                PageSwitcher {
+                    current_page: user_page.page,
+                    current_page_change: move |value| on_page_change.call(value),
+                }
+            }
+        },
+        Some(Err(error)) => rsx! {
+            p { class: "abnormal-state-message", "Erreur : {error}" }
+        },
+        None => rsx! {
+            p { class: "abnormal-state-message", "Chargement..." }
+        },
     }
 }
 
@@ -940,20 +969,15 @@ pub fn ModerationGames() -> Element {
 
 #[component]
 fn GamesDashboard() -> Element {
-    let mut search = use_signal(String::new);
+    let mut search_input = use_signal(String::new);
+    let mut search_query = use_signal(String::new);
     let mut debounce_task = use_signal(|| None::<Task>);
     let mut current_page = use_signal(|| 0u64);
     let mut refresh = use_signal(|| 0u64);
 
-    let games_resource = use_server_future(move || {
-        let _ = refresh();
-        let query = search();
-        let page = current_page();
-        async move { moderation::moderation_list_games(query, page).await }
-    })?;
-
     let on_search = move |evt: Event<FormData>| {
         let value = evt.value();
+        search_input.set(value.clone());
         if let Some(task) = debounce_task.take() {
             task.cancel();
         }
@@ -961,7 +985,7 @@ fn GamesDashboard() -> Element {
             #[cfg(target_arch = "wasm32")]
             gloo_timers::future::TimeoutFuture::new(300).await;
             current_page.set(0);
-            search.set(value);
+            search_query.set(value);
         });
         debounce_task.set(Some(task));
     };
@@ -990,35 +1014,61 @@ fn GamesDashboard() -> Element {
                 r#type: "search",
                 placeholder: "Rechercher un joueur ou une partie...",
                 aria_label: "Rechercher une partie",
+                value: "{search_input}",
                 oninput: on_search,
             }
 
-            match games_resource() {
-                Some(Ok(game_page)) => rsx! {
-                    p { class: "moderation-count", "{game_page.total} partie(s)" }
-                    div { class: "moderation-game-list",
-                        for game in game_page.games.iter() {
-                            GameAdminCard { key: "{game.id}", game: game.clone(), refresh }
-                        }
-                    }
-                    if game_page.games.is_empty() {
-                        p { class: "abnormal-state-message", "Aucune partie trouvée" }
-                    }
-                    if game_page.total > 12 {
-                        PageSwitcher {
-                            current_page: game_page.page,
-                            current_page_change: move |value| current_page.set(value),
-                        }
-                    }
-                },
-                Some(Err(error)) => rsx! {
-                    p { class: "abnormal-state-message", "Erreur : {error}" }
-                },
-                None => rsx! {
-                    p { class: "abnormal-state-message", "Chargement..." }
-                },
+            SuspenseBoundary {
+                fallback: |_| rsx! { p { class: "abnormal-state-message", "Patience..." } },
+                GameList {
+                    search_query,
+                    current_page,
+                    refresh,
+                    on_page_change: move |value| current_page.set(value),
+                }
             }
         }
+    }
+}
+
+#[component]
+fn GameList(
+    search_query: ReadSignal<String>,
+    current_page: ReadSignal<u64>,
+    refresh: Signal<u64>,
+    on_page_change: EventHandler<u64>,
+) -> Element {
+    let games_resource = use_server_future(move || {
+        let _ = refresh();
+        let query = search_query();
+        let page = current_page();
+        async move { moderation::moderation_list_games(query, page).await }
+    })?;
+
+    match games_resource() {
+        Some(Ok(game_page)) => rsx! {
+            p { class: "moderation-count", "{game_page.total} partie(s)" }
+            div { class: "moderation-game-list",
+                for game in game_page.games.iter() {
+                    GameAdminCard { key: "{game.id}", game: game.clone(), refresh }
+                }
+            }
+            if game_page.games.is_empty() {
+                p { class: "abnormal-state-message", "Aucune partie trouvée" }
+            }
+            if game_page.total > 12 {
+                PageSwitcher {
+                    current_page: game_page.page,
+                    current_page_change: move |value| on_page_change.call(value),
+                }
+            }
+        },
+        Some(Err(error)) => rsx! {
+            p { class: "abnormal-state-message", "Erreur : {error}" }
+        },
+        None => rsx! {
+            p { class: "abnormal-state-message", "Chargement..." }
+        },
     }
 }
 
@@ -1265,31 +1315,31 @@ fn TeamEditor(
     other: Signal<Vec<String>>,
     accent: String,
 ) -> Element {
-    let mut search = use_signal(String::new);
+    let mut search_input = use_signal(String::new);
+    let mut search_query = use_signal(String::new);
     let mut debounce_task = use_signal(|| None::<Task>);
-
-    let results = use_server_future(move || {
-        let query = search();
-        async move {
-            if query.trim().is_empty() {
-                Ok(Vec::<global::UserSearchItem>::new())
-            } else {
-                global::search_user(query).await
-            }
-        }
-    })?;
 
     let on_input = move |evt: Event<FormData>| {
         let value = evt.value();
+        search_input.set(value.clone());
         if let Some(task) = debounce_task.take() {
             task.cancel();
         }
         let task = spawn(async move {
             #[cfg(target_arch = "wasm32")]
             gloo_timers::future::TimeoutFuture::new(300).await;
-            search.set(value);
+            search_query.set(value);
         });
         debounce_task.set(Some(task));
+    };
+
+    let on_add = move |username: String| {
+        if own().contains(&username) || other().contains(&username) {
+            return;
+        }
+        own.write().push(username);
+        search_input.set(String::new());
+        search_query.set(String::new());
     };
 
     rsx! {
@@ -1317,41 +1367,59 @@ fn TeamEditor(
                 class: "search-input",
                 r#type: "search",
                 placeholder: "Ajouter un joueur...",
-                value: "{search}",
+                value: "{search_input}",
                 oninput: on_input,
             }
 
-            if !search().trim().is_empty() {
+            if !search_input().trim().is_empty() {
                 div { class: "moderation-search-results",
-                    match results() {
-                        Some(Ok(items)) => rsx! {
-                            if items.is_empty() {
-                                p { class: "moderation-meta", "Aucun joueur trouvé" }
-                            }
-                            for item in items.iter() {
-                                button {
-                                    class: "moderation-search-item",
-                                    key: "{item.username}",
-                                    r#type: "button",
-                                    onclick: {
-                                        let username = item.username.clone();
-                                        move |_| {
-                                            if !own().contains(&username) && !other().contains(&username) {
-                                                own.write().push(username.clone());
-                                                search.set(String::new());
-                                            }
-                                        }
-                                    },
-                                    span { "{item.username}" }
-                                    span { class: "chip-elo", "{item.elo}" }
-                                }
-                            }
-                        },
-                        Some(Err(error)) => rsx! { p { class: "form-error", "{error}" } },
-                        None => rsx! { p { class: "moderation-meta", "Recherche..." } },
+                    SuspenseBoundary {
+                        fallback: |_| rsx! { p { class: "moderation-meta", "Recherche..." } },
+                        PlayerSearchResults { search_query, on_add }
                     }
                 }
             }
         }
+    }
+}
+
+#[component]
+fn PlayerSearchResults(search_query: ReadSignal<String>, on_add: EventHandler<String>) -> Element {
+    let results = use_server_future(move || {
+        let query = search_query();
+        async move {
+            if query.trim().is_empty() {
+                Ok(Vec::<global::UserSearchItem>::new())
+            } else {
+                global::search_user(query).await
+            }
+        }
+    })?;
+
+    if search_query().trim().is_empty() {
+        return rsx! { p { class: "moderation-meta", "Recherche..." } };
+    }
+
+    match results() {
+        Some(Ok(items)) => rsx! {
+            if items.is_empty() {
+                p { class: "moderation-meta", "Aucun joueur trouvé" }
+            }
+            for item in items.iter() {
+                button {
+                    class: "moderation-search-item",
+                    key: "{item.username}",
+                    r#type: "button",
+                    onclick: {
+                        let username = item.username.clone();
+                        move |_| on_add.call(username.clone())
+                    },
+                    span { "{item.username}" }
+                    span { class: "chip-elo", "{item.elo}" }
+                }
+            }
+        },
+        Some(Err(error)) => rsx! { p { class: "form-error", "{error}" } },
+        None => rsx! { p { class: "moderation-meta", "Recherche..." } },
     }
 }
