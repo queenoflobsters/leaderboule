@@ -41,7 +41,7 @@ dx serve --addr 0.0.0.0 # Pour exposer sur le réseau local
 dx serve --release # Pour maximum de perfs
 ```
 
-Les données sont conservées dans le volume Docker `db_data`.
+Les données sont conservées dans le volume Docker `postgres_data`.
 
 ### Avec Docker
 

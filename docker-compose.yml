@@ -11,7 +11,7 @@ services:
     ports:
       - "5432:5432" # For me to access the db anytime
     volumes:
-      - db_data:/var/lib/postgresql/data:z
+      - postgres_data:/var/lib/postgresql/data:z
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
@@ -39,4 +39,4 @@ services:
         condition: service_healthy
 
 volumes:
-  db_data:
+  postgres_data:

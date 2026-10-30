@@ -45,7 +45,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       TZ: Europe/Paris
     volumes:
-      - leaderboule-data:/var/lib/postgresql/data:z
+      - leaderboule-postgres-data:/var/lib/postgresql/data:z
     networks:
       - leaderboule-network
     healthcheck:
@@ -73,5 +73,5 @@ networks:
 # Persistent Data Volumes
 # -------------------------------------------------------------
 volumes:
-  leaderboule-data:
-    name: leaderboule-data
+  leaderboule-postgres-data:
+    name: leaderboule-postgres-data
