@@ -26,7 +26,7 @@ use crate::{
     },
     server::{
         access, audit, db, elo,
-        entities::{activity_log, audit_log, game, game_player, session, user},
+        entities::{activity_log, audit_log, game, game_player, session, user, user_cred},
         utils,
     },
 };
@@ -91,6 +91,7 @@ fn audit_label(action: &str) -> &'static str {
     match action {
         "update_stats" => "Statistiques modifiées",
         "change_username" => "Nom forcé",
+        "reset_password" => "Mot de passe réinitialisé",
         "set_role" => "Rôle modifié",
         "suspend" => "Suspension",
         "ban" => "Bannissement",
@@ -147,7 +148,7 @@ pub async fn list_users(
 
 /// Détail complet d'un utilisateur : profil, activité et parties.
 pub async fn get_user_detail(
-    _actor: &user::Model,
+    actor: &user::Model,
     user_id: String,
 ) -> Result<ModerationUserDetail, ServerFnError> {
     let user_id = Uuid::parse_str(&user_id).map_err(|_| invalid_id())?;
@@ -169,6 +170,13 @@ pub async fn get_user_detail(
             .map_err(db::db_err)?,
         None => None,
     };
+
+    let has_password = user_cred::Entity::find()
+        .filter(user_cred::Column::UserId.eq(user_id))
+        .count(db)
+        .await
+        .map_err(db::db_err)?
+        > 0;
 
     let games = games_for_user(user_id, 25).await?;
     let logs = activity_log::Entity::find()
@@ -247,6 +255,8 @@ pub async fn get_user_detail(
         moderated_by,
         activity: timeline,
         games,
+        has_password,
+        is_self: actor.id == user_id,
     })
 }
 
@@ -394,6 +404,58 @@ pub async fn change_username(
     Ok(Ok(trimmed))
 }
 
+/// Réinitialise le mot de passe d'un utilisateur.
+///
+/// Le hash existant est supprimé : à la prochaine connexion, le mot de passe
+/// saisi par l'utilisateur devient son nouveau mot de passe. Les sessions
+/// ouvertes sont fermées pour que l'ancien mot de passe ne donne plus accès à
+/// un compte déjà connecté.
+pub async fn reset_password(
+    actor: &user::Model,
+    user_id: String,
+) -> Result<Result<(), String>, ServerFnError> {
+    let Ok(user_id) = Uuid::parse_str(&user_id) else {
+        return Ok(Err("Identifiant utilisateur invalide".to_string()));
+    };
+
+    let db = db::get().await;
+    let transaction = db.begin().await.map_err(db::db_err)?;
+
+    let Some(target) = user::Entity::find_by_id(user_id)
+        .one(&transaction)
+        .await
+        .map_err(db::db_err)?
+    else {
+        return Ok(Err("Utilisateur introuvable".to_string()));
+    };
+
+    user_cred::Entity::delete_many()
+        .filter(user_cred::Column::UserId.eq(user_id))
+        .exec(&transaction)
+        .await
+        .map_err(db::db_err)?;
+
+    session::Entity::delete_many()
+        .filter(session::Column::UserId.eq(user_id))
+        .exec(&transaction)
+        .await
+        .map_err(db::db_err)?;
+
+    audit::record_audit(
+        &transaction,
+        actor,
+        "reset_password",
+        Some(user_id),
+        Some(target.username),
+        None,
+        "Mot de passe réinitialisé. Le prochain mot de passe saisi à la connexion deviendra le nouveau mot de passe ; toutes les sessions ont été fermées.".to_string(),
+    )
+    .await?;
+
+    transaction.commit().await.map_err(db::db_err)?;
+    Ok(Ok(()))
+}
+
 /// Promeut ou rétrograde un utilisateur.
 pub async fn set_role(
     actor: &user::Model,
@@ -448,11 +510,7 @@ pub async fn set_role(
         Some(user_id),
         Some(target.username),
         None,
-        format!(
-            "Rôle {} → {}",
-            target.role.label_fr(),
-            role.label_fr()
-        ),
+        format!("Rôle {} → {}", target.role.label_fr(), role.label_fr()),
     )
     .await?;
 

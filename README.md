@@ -105,6 +105,7 @@ DATABASE_URL="postgres://leaderboule:leaderboule@127.0.0.1:5433/leaderboule" dx 
   - [x] Recherche et inspection des comptes
   - [x] Édition de l'Elo et des compteurs avec validation
   - [x] Changement forcé / assainissement du nom d'utilisateur
+  - [x] Réinitialisation du mot de passe d'un utilisateur
   - [x] Suspension, bannissement, promotion / rétrogradation
   - [x] Journal d'audit et historique d'activité
   - [x] Correction et suppression de parties avec recalcul des effets
@@ -112,7 +113,6 @@ DATABASE_URL="postgres://leaderboule:leaderboule@127.0.0.1:5433/leaderboule" dx 
 ## Restant à faire
 - [ ] Système de trophés
 - [ ] Changer le logo
-- [ ] CICD Pipeline QUI FONCTIONNE
 - [ ] Working Elo system (implémenter le job d'Anaé)
 
 Compter le nombre de lignes de code (j'aime bien faire ça)

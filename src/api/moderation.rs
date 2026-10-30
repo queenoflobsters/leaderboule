@@ -82,6 +82,10 @@ pub struct ModerationUserDetail {
     pub moderated_by: Option<String>,
     pub activity: Vec<ActivityEntry>,
     pub games: Vec<ModerationGameSummary>,
+    /// `false` si aucun hash n'est présent (jamais défini ou réinitialisé) :
+    /// le prochain mot de passe saisi à la connexion sera enregistré.
+    pub has_password: bool,
+    pub is_self: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Default, PartialEq)]
@@ -183,6 +187,16 @@ pub async fn moderation_change_username(
     use crate::server::{access, moderation};
     let actor = access::require_admin().await?;
     moderation::change_username(&actor, user_id, new_username).await
+}
+
+/// Réinitialise le mot de passe d'un utilisateur.
+#[server]
+pub async fn moderation_reset_password(
+    user_id: String,
+) -> Result<Result<(), String>, ServerFnError> {
+    use crate::server::{access, moderation};
+    let actor = access::require_admin().await?;
+    moderation::reset_password(&actor, user_id).await
 }
 
 /// Promeut ou rétrograde un utilisateur.

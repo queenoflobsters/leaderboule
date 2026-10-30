@@ -338,6 +338,12 @@ fn UserInspector(user_id: String) -> Element {
                         user: detail.user.clone(),
                         refresh,
                     }
+                    PasswordResetPanel {
+                        user: detail.user.clone(),
+                        has_password: detail.has_password,
+                        is_self: detail.is_self,
+                        refresh,
+                    }
                 }
 
                 section { class: "moderation-panel",
@@ -831,6 +837,86 @@ fn UsernameEditor(user: ModerationUserSummary, refresh: Signal<u64>) -> Element 
                     onclick: save,
                     "Forcer le changement"
                 }
+            }
+        }
+    }
+}
+
+#[component]
+fn PasswordResetPanel(
+    user: ModerationUserSummary,
+    has_password: bool,
+    is_self: bool,
+    refresh: Signal<u64>,
+) -> Element {
+    let nav = use_navigator();
+    let mut confirm = use_signal(|| false);
+    let mut loading = use_signal(|| false);
+    let mut feedback = use_signal(|| Option::<(bool, String)>::None);
+    let user_id = user.id.clone();
+
+    let reset = move |_| {
+        if !confirm() {
+            confirm.set(true);
+            return;
+        }
+
+        let user_id = user_id.clone();
+        loading.set(true);
+        feedback.set(None);
+        spawn(async move {
+            match moderation::moderation_reset_password(user_id).await {
+                Ok(Ok(())) => {
+                    if is_self {
+                        nav.push(Route::Login);
+                    } else {
+                        feedback.set(Some((
+                            true,
+                            "Mot de passe réinitialisé. Le prochain mot de passe saisi par l'utilisateur à la connexion deviendra le nouveau.".to_string(),
+                        )));
+                        refresh += 1;
+                    }
+                }
+                Ok(Err(error)) => feedback.set(Some((false, error))),
+                Err(error) => feedback.set(Some((false, error.to_string()))),
+            }
+            loading.set(false);
+            confirm.set(false);
+        });
+    };
+
+    rsx! {
+        section { class: "moderation-panel",
+            h2 { "Mot de passe" }
+            div { class: "sanction-state",
+                span {
+                    class: if has_password { "badge status-active" } else { "badge status-suspended" },
+                    { if has_password { "Défini" } else { "Non défini" } }
+                }
+            }
+            p { class: "moderation-hint",
+                { if has_password {
+                    "Réinitialiser le mot de passe supprimera l'ancien. À sa prochaine connexion, l'utilisateur devra saisir un nouveau mot de passe : celui qu'il entrera deviendra son mot de passe."
+                } else {
+                    "Aucun mot de passe n'est défini. Le prochain mot de passe saisi à la connexion sera enregistré."
+                } }
+            }
+            if is_self {
+                p { class: "moderation-hint",
+                    "Vous réinitialisez votre propre mot de passe : vous serez déconnecté après l'opération."
+                }
+            }
+            Feedback { message: feedback() }
+            button {
+                class: if confirm() {
+                    "important-button danger-button"
+                } else {
+                    "important-button warning-button"
+                },
+                r#type: "button",
+                disabled: loading(),
+                onclick: reset,
+                { if confirm() { "Confirmer la réinitialisation" } else { "Réinitialiser le mot de passe" } }
             }
         }
     }
