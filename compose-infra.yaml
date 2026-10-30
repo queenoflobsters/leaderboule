@@ -21,6 +21,8 @@ services:
       # Helloasso API Interaction
       HELLOASSO_CLIENT_ID: ${HELLOASSO_CLIENT_ID}
       HELLOASSO_CLIENT_SECRET: ${HELLOASSO_CLIENT_SECRET}
+      # Emails toujours administrateurs (séparés par des virgules)
+      ADMIN_EMAILS: ${ADMIN_EMAILS}
       # App runtime settings
       PORT: 8080
       IP: 0.0.0.0 # Exposes

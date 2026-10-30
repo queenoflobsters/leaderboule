@@ -1,6 +1,15 @@
 use crate::client::{
-    account::Account, history::History, leaderboard::Leaderboard, login::Login, logout::Logout,
-    navbar::Navbar, new_game::NewGame, page_not_found::PageNotFound,
+    account::Account,
+    history::History,
+    leaderboard::Leaderboard,
+    login::Login,
+    logout::Logout,
+    moderation::{
+        Moderation, ModerationGamePage as ModerationGame, ModerationGames, ModerationUser,
+    },
+    navbar::Navbar,
+    new_game::NewGame,
+    page_not_found::PageNotFound,
 };
 use dioxus::prelude::*;
 
@@ -24,6 +33,14 @@ pub enum Route {
     NewGame,
     #[route("/history")]
     History, // TODO make page not found
+    #[route("/moderation")]
+    Moderation,
+    #[route("/moderation/users/:user_id")]
+    ModerationUser { user_id: String },
+    #[route("/moderation/games")]
+    ModerationGames,
+    #[route("/moderation/games/:game_id")]
+    ModerationGame { game_id: String },
 }
 
 impl Route {
@@ -36,6 +53,10 @@ impl Route {
             Route::PageNotFound { .. } => "Page non trouvée",
             Route::NewGame => "Nouvelle Partie",
             Route::History => "Historique",
+            Route::Moderation => "Modération",
+            Route::ModerationUser { .. } => "Inspecteur utilisateur",
+            Route::ModerationGames => "Parties",
+            Route::ModerationGame { .. } => "Édition de partie",
         }
     }
 
@@ -48,6 +69,18 @@ impl Route {
             Route::PageNotFound { .. } => true,
             _ => false,
         }
+    }
+
+    #[cfg(feature = "server")]
+    #[allow(clippy::match_like_matches_macro)] // Cohérent avec `is_public`
+    pub fn is_admin_only(&self) -> bool {
+        matches!(
+            self,
+            Route::Moderation
+                | Route::ModerationUser { .. }
+                | Route::ModerationGames
+                | Route::ModerationGame { .. }
+        )
     }
 }
 

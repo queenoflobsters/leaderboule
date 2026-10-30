@@ -4,6 +4,8 @@
 //! volontairement pas exposées ici : elles ne doivent jamais être écrites par
 //! l'application.
 
+pub mod activity_log;
+pub mod audit_log;
 pub mod game;
 pub mod game_player;
 pub mod session;

@@ -32,3 +32,6 @@ pub mod new_game;
 
 /// Composant pour l'historique des parties
 pub mod history;
+
+/// Interface de modération (admin uniquement)
+pub mod moderation;
