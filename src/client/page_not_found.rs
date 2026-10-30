@@ -11,8 +11,11 @@ pub fn PageNotFound(segments: Vec<String>) -> Element {
         }
     });
     rsx! {
-        h1 { "404 Page non trouvée" }
-        h3 { "Désolé" }
-        p { "{filler}" }
+        div { class: "not-found route-container",
+            p { class: "not-found-code", "404" }
+            h1 { "Page non trouvée" }
+            p { class: "not-found-message", "Désolé, cette page n'existe pas." }
+            p { class: "not-found-filler", "{filler}" }
+        }
     }
 }

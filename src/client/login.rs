@@ -2,8 +2,6 @@ use crate::api::auth;
 use crate::client::route::Route;
 use dioxus::prelude::*;
 
-const LOGIN_CSS: Asset = asset!("/assets/style/login.css");
-
 #[component]
 pub fn Login() -> Element {
     let mut email = use_signal(String::new);
@@ -38,10 +36,8 @@ pub fn Login() -> Element {
     };
 
     rsx! {
-        document::Stylesheet { href : LOGIN_CSS }
-
         div { class: "login-outer-container route-container",
-            h1 { "Leaderboule" }
+            h1 { class: "login-title", "Leaderboule" }
             div { class: "login-inner-container",
                 p { "C'est ma première connexion :" }
                 div { class: "instruction-container",
@@ -60,14 +56,16 @@ pub fn Login() -> Element {
                     input { class: "login-input",
                         r#type: "email",
                         placeholder: "petanque@petanque.fr",
+                        autocomplete: "email",
                         value: "{email}",
                         oninput: move |e| email.set(e.value()),
                         required: true,
                     }
                     input { class: "login-input",
                         r#type: "password",
-                        value: "{password}",
                         placeholder: "Mot de passe",
+                        autocomplete: "current-password",
+                        value: "{password}",
                         oninput: move |e| password.set(e.value()),
                         required: true,
                     }
@@ -79,10 +77,11 @@ pub fn Login() -> Element {
                 }
 
                 if let Some(err) = error_msg() {
-                    p { class: "error-message", style: "color: red;", "{err}" }
+                    p { class: "error-message", role: "alert", "{err}" }
                 }
 
-                div { class: "forgot-password-button",
+                button { class: "forgot-password-button",
+                    r#type: "button",
                     onclick: move |_| show_forgot_popup.toggle(),
                     "J'ai oublié mon mot de passe"
                 }

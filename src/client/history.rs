@@ -5,7 +5,6 @@ use crate::{api::{
     utils,
 }, client::components::page_switcher::PageSwitcher};
 
-const HISTORY_CSS: Asset = asset!("assets/style/history.css");
 const ARROW_UP_SVG: Asset = asset!("assets/icons/arrow-up.svg");
 const ARROW_DOWN_SVG: Asset = asset!("assets/icons/arrow-down.svg");
 
@@ -14,7 +13,6 @@ pub fn History() -> Element {
     let mut current_page = use_signal(|| 0);
 
     rsx! {
-        document::Stylesheet { href: HISTORY_CSS }
         div { class: "history-container route-container",
 
             SuspenseBoundary {

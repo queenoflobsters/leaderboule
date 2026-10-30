@@ -1,4 +1,98 @@
-.balls {
-  font: bold;
-  color: red;
+/* Page d'accueil statique : styles autonomes, sans framework CSS. */
+
+@import url("https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;500;700&display=swap");
+
+:root {
+  color-scheme: dark;
+  --landing-bg: #111111;
+  --landing-text: #f4f4f4;
+  --landing-text-muted: #b4b4b4;
+  --landing-accent: #840000;
+  --landing-accent-bright: #fc5356;
+  --landing-focus: #8ab4ff;
+  --landing-radius: 0.9rem;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  min-height: 100dvh;
+  margin: 0;
+  background:
+    radial-gradient(circle at 50% 20%, #1d1d1d 0, transparent 34rem),
+    var(--landing-bg);
+  color: var(--landing-text);
+  font-family: Ubuntu, "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.landing {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 1.25rem;
+  min-height: 100dvh;
+  padding: 2rem 1rem;
+  text-align: center;
+}
+
+.landing h1 {
+  margin: 0;
+  font-size: clamp(2.2rem, 8vw, 3.8rem);
+  letter-spacing: -0.02em;
+}
+
+.landing p {
+  max-width: 28rem;
+  margin: 0;
+  color: var(--landing-text-muted);
+  font-size: 1.05rem;
+}
+
+.access-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0.5rem;
+  padding: 1rem 2.5rem;
+  border: 1px solid color-mix(in srgb, var(--landing-accent-bright) 35%, transparent);
+  border-radius: var(--landing-radius);
+  background-color: var(--landing-accent);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 35%);
+  color: #ffffff;
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  transition:
+    background-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.access-button:hover {
+  background-color: color-mix(in srgb, var(--landing-accent) 82%, white 18%);
+  box-shadow: 0 16px 38px rgb(0 0 0 / 45%);
+  transform: translateY(-2px);
+}
+
+.access-button:active {
+  transform: translateY(0);
+}
+
+.access-button:focus-visible {
+  outline: 2px solid var(--landing-focus);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .access-button {
+    transition: none;
+  }
 }
