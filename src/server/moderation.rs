@@ -868,25 +868,35 @@ pub async fn update_game(
         .all(&transaction)
         .await
         .map_err(db::db_err)?;
-    let elo_by_id: HashMap<Uuid, u64> = refreshed_users
+    let users_by_id: HashMap<Uuid, db::UserWithElo> = refreshed_users
         .into_iter()
-        .map(|user| (user.id, user.elo.max(0) as u64))
+        .map(|user| {
+            (
+                user.id,
+                db::UserWithElo {
+                    id: user.id,
+                    elo: user.elo.max(0) as u64,
+                    games_played: user.games_played.max(0) as u64,
+                },
+            )
+        })
         .collect();
 
     let winning_with_elo: Vec<db::UserWithElo> = winning_users
         .iter()
-        .map(|user| db::UserWithElo {
-            id: user.id,
-            elo: *elo_by_id.get(&user.id).unwrap_or(&0),
-        })
+        .filter_map(|user| users_by_id.get(&user.id).cloned())
         .collect();
     let losing_with_elo: Vec<db::UserWithElo> = losing_users
         .iter()
-        .map(|user| db::UserWithElo {
-            id: user.id,
-            elo: *elo_by_id.get(&user.id).unwrap_or(&0),
-        })
+        .filter_map(|user| users_by_id.get(&user.id).cloned())
         .collect();
+
+    if winning_with_elo.len() != winning_users.len() || losing_with_elo.len() != losing_users.len()
+    {
+        return Ok(Err(
+            "Un ou plusieurs joueurs n'existent plus dans la base de données".to_string(),
+        ));
+    }
 
     let updates = elo::compute_changes(
         input.won_score,

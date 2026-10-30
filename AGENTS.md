@@ -9,7 +9,7 @@ Leaderboule is a single Rust binary crate: Dioxus 0.7.10 fullstack + SeaORM 2 + 
 - `src/api/` is shared client/server code and contains the `#[server]` functions. `src/server/` is server-only; `src/client/` is the UI.
 - SeaORM/tokio/uuid/argon2 are only available for non-wasm targets. Do not import them from shared or client code.
 - Dioxus is pinned to `=0.7.10`; the Dockerfile installs the matching Dioxus CLI.
-- `src/server/elo.rs` still returns a hardcoded `±100` Elo change (TODOs); it is not the final algorithm.
+- `src/server/elo.rs` implements the custom Pétanque Elo engine documented in `ELO_SYSTEM.md` (team dispersion, margin-of-victory, dynamic placement, individual weighting). Pure unit tests live in the same file and run with `cargo test --no-default-features --features server`.
 - User-facing copy and most comments are French; keep that language unless asked otherwise.
 
 ## Commands
@@ -33,7 +33,7 @@ dx build --web --release
 ```
 
 - `cargo fmt --all` is **not** currently clean and rewrites unrelated files. Format only files you touched.
-- `cargo test --no-default-features --features server` currently runs 0 tests. There are no committed tests or DB fixtures.
+- `cargo test --no-default-features --features server` runs the pure Elo unit tests. There are still no DB integration fixtures.
 - Unknown-email login calls the real Helloasso API. For local auth tests, seed users directly in PostgreSQL instead.
 
 ## Database
