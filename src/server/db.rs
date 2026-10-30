@@ -6,7 +6,6 @@ use sea_orm::{
     EntityTrait, FromQueryResult, JoinType, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
     RelationTrait, Set, Statement, TransactionTrait,
 };
-use sea_orm_migration::MigratorTrait;
 use tokio::sync::OnceCell;
 use uuid::Uuid;
 
@@ -20,10 +19,12 @@ use crate::{
     server::{
         elo,
         entities::{game, game_player, user},
-        migration::Migrator,
         utils,
     },
 };
+
+/// Schéma PostgreSQL complet, embarqué dans le binaire.
+const INIT_SQL: &str = include_str!("../init.sql");
 
 /// Référence à la base de données.
 pub static DB: OnceCell<DatabaseConnection> = OnceCell::const_new();
@@ -39,7 +40,7 @@ pub struct UserWithElo {
     pub elo: u64,
 }
 
-/// Initialise la connexion PostgreSQL et applique les migrations en attente.
+/// Initialise la connexion PostgreSQL et crée le schéma s'il n'existe pas.
 pub async fn get() -> &'static DatabaseConnection {
     DB.get_or_init(|| async {
         let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
@@ -57,13 +58,58 @@ pub async fn get() -> &'static DatabaseConnection {
             .await
             .expect("Impossible de se connecter à PostgreSQL");
 
-        Migrator::up(&db, None)
+        ensure_schema(&db).await;
+
+        // Les emails de `ADMIN_EMAILS` déjà présents en base doivent toujours
+        // avoir le rôle admin, même après une rétrogradation manuelle.
+        crate::server::access::sync_env_admins(&db)
             .await
-            .expect("Impossible d'appliquer les migrations PostgreSQL");
+            .expect("Impossible de synchroniser les administrateurs du .env");
 
         db
     })
     .await
+}
+
+/// Crée le schéma au premier démarrage.
+///
+/// Il n'y a pas encore de base existante à migrer : `init.sql` est le schéma
+/// de référence et n'est exécuté que si la table `users` est absente. Un
+/// redémarrage normal ne rejoue donc jamais le script.
+async fn ensure_schema(db: &DatabaseConnection) {
+    let statement = Statement::from_string(
+        DbBackend::Postgres,
+        "SELECT to_regclass('public.users') IS NOT NULL AS initialized",
+    );
+
+    let already_initialized = db
+        .query_one_raw(statement)
+        .await
+        .expect("Impossible de vérifier le schéma PostgreSQL")
+        .map(|row| {
+            row.try_get::<bool>("", "initialized")
+                .expect("Réponse inattendue lors de la vérification du schéma PostgreSQL")
+        })
+        .unwrap_or(false);
+
+    if already_initialized {
+        return;
+    }
+
+    // Le DDL PostgreSQL est transactionnel : un échec ne laisse pas un schéma
+    // à moitié créé derrière lui.
+    let transaction = db
+        .begin()
+        .await
+        .expect("Impossible de démarrer la création du schéma PostgreSQL");
+    transaction
+        .execute_unprepared(INIT_SQL)
+        .await
+        .expect("Impossible de créer le schéma PostgreSQL");
+    transaction
+        .commit()
+        .await
+        .expect("Impossible de valider la création du schéma PostgreSQL");
 }
 
 /// Convertit une erreur SeaORM en erreur de server function.
@@ -352,7 +398,7 @@ async fn get_recent_game(user_id: Uuid) -> Result<Option<game::Model>, ServerFnE
 
 /// Associe à chaque nom d'utilisateur son `user_id` et son `elo`,
 /// pour le calcul d'elo par la suite.
-async fn map_usernames(
+pub(crate) async fn map_usernames(
     left_team: Vec<String>,
     right_team: Vec<String>,
 ) -> Result<Result<[Vec<UserWithElo>; 2], String>, ServerFnError> {
@@ -486,7 +532,7 @@ struct GameHistoryRow {
 }
 
 /// Échappe les caractères spéciaux d'un motif `LIKE`/`ILIKE`.
-fn escape_like(input: &str) -> String {
+pub(crate) fn escape_like(input: &str) -> String {
     input
         .replace('\\', "\\\\")
         .replace('%', "\\%")

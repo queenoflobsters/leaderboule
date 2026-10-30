@@ -1,4 +1,7 @@
-use crate::{api::db::current_user, client::route::Route};
+use crate::{
+    api::db::current_user::{self, AccessInfo},
+    client::route::Route,
+};
 use dioxus::prelude::*;
 
 const HAMBURGER_SVG: Asset = asset!("assets/icons/hamburger.svg");
@@ -6,15 +9,24 @@ const LEADERBOARD_SVG: Asset = asset!("assets/icons/leaderboard.svg");
 const ACCOUNT_SVG: Asset = asset!("assets/icons/account.svg");
 const PEN_SVG: Asset = asset!("assets/icons/pen.svg");
 const BOOK_SVG: Asset = asset!("assets/icons/book.svg");
+const SHIELD_SVG: Asset = asset!("assets/icons/shield.svg");
 
 #[component]
 pub fn Navbar() -> Element {
-    let username_hook = use_server_future(current_user::get_username)?;
-    let username = match username_hook() {
-        Some(Ok(username)) => username,
-        Some(Err(e)) => format!("ERREUR: {}", e),
-        None => "Chargement...".to_string()
+    let access_hook = use_server_future(current_user::get_access)?;
+    let access = match access_hook() {
+        Some(Ok(access)) => access,
+        Some(Err(e)) => AccessInfo {
+            username: format!("ERREUR: {}", e),
+            ..Default::default()
+        },
+        None => AccessInfo {
+            username: "Chargement...".to_string(),
+            ..Default::default()
+        },
     };
+    let username = access.username.clone();
+    let is_admin = access.is_admin;
     let mut is_open = use_signal(|| false);
     let current_route = use_route::<Route>();
     let on_link_click = move |_| {
@@ -30,68 +42,78 @@ pub fn Navbar() -> Element {
     };
 
     rsx! {
-            // Top bar fixed at top
-            header { class: "top-bar",
-                button {
-                    class: if is_open() {"hamburger open"} else {"hamburger"},
-                    r#type: "button",
-                    aria_label: "Ouvrir le menu",
-                    onclick: move |_| is_open.toggle(),
-                    img {
-                        src: HAMBURGER_SVG,
-                        alt: "",
-                    }
+        // Top bar fixed at top
+        header { class: "top-bar",
+            button {
+                class: if is_open() {"hamburger open"} else {"hamburger"},
+                r#type: "button",
+                aria_label: "Ouvrir le menu",
+                onclick: move |_| is_open.toggle(),
+                img {
+                    src: HAMBURGER_SVG,
+                    alt: "",
                 }
-                div { {current_route.title()} }
             }
-
-            // Sliding Sidebar
-            { if is_open() { rsx! {
-
-                nav { class: "sidebar",
-                    div { class: "links-container normal-routes",
-                        Link {
-                            class: "link-entry",
-                            to: Route::Leaderboard {},
-                            active_class: "active-route",
-                            onclick: on_link_click,
-                            img { class: "icon", src: LEADERBOARD_SVG, }
-                            {Route::Leaderboard.title()}
-                        }
-                        Link {
-                            class: "link-entry",
-                            to: Route::NewGame {},
-                            active_class: "active-route",
-                            onclick: on_link_click,
-                            img { class: "icon", src: PEN_SVG, }
-                            {Route::NewGame.title()}
-                        }
-                        Link {
-                            class: "link-entry",
-                            to: Route::History {},
-                            active_class: "active-route",
-                            onclick: on_link_click,
-                            img { class: "icon", src: BOOK_SVG, }
-                            {Route::History.title()}
-                        }
-                    }
-                    div { class: "links-container account-route",
-                        Link {
-                            class: "link-entry",
-                            to: Route::Account {},
-                            active_class: "active-route",
-                            onclick: on_link_click,
-                            img { class: "icon", src: ACCOUNT_SVG, }
-                            {username}
-                        }
-                    }
-                }
-
-            }} else { rsx! {} }}
-
-            // Page content injected here
-                main { class: if is_open() { "main-content open" } else { "main-content" },
-                Outlet::<Route> {}
-            }
+            div { {current_route.title()} }
         }
+
+        // Sliding Sidebar
+        { if is_open() { rsx! {
+
+            nav { class: "sidebar",
+                div { class: "links-container normal-routes",
+                    Link {
+                        class: "link-entry",
+                        to: Route::Leaderboard {},
+                        active_class: "active-route",
+                        onclick: on_link_click,
+                        img { class: "icon", src: LEADERBOARD_SVG, }
+                        {Route::Leaderboard.title()}
+                    }
+                    Link {
+                        class: "link-entry",
+                        to: Route::NewGame {},
+                        active_class: "active-route",
+                        onclick: on_link_click,
+                        img { class: "icon", src: PEN_SVG, }
+                        {Route::NewGame.title()}
+                    }
+                    Link {
+                        class: "link-entry",
+                        to: Route::History {},
+                        active_class: "active-route",
+                        onclick: on_link_click,
+                        img { class: "icon", src: BOOK_SVG, }
+                        {Route::History.title()}
+                    }
+                    { if is_admin { rsx! {
+                        Link {
+                            class: "link-entry admin-link",
+                            to: Route::Moderation {},
+                            active_class: "active-route",
+                            onclick: on_link_click,
+                            img { class: "icon", src: SHIELD_SVG, }
+                            {Route::Moderation.title()}
+                        }
+                    }} else { rsx! {} } }
+                }
+                div { class: "links-container account-route",
+                    Link {
+                        class: "link-entry",
+                        to: Route::Account {},
+                        active_class: "active-route",
+                        onclick: on_link_click,
+                        img { class: "icon", src: ACCOUNT_SVG, }
+                        {username}
+                    }
+                }
+            }
+
+        }} else { rsx! {} }}
+
+        // Page content injected here
+            main { class: if is_open() { "main-content open" } else { "main-content" },
+            Outlet::<Route> {}
+        }
+    }
 }

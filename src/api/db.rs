@@ -5,7 +5,10 @@ use serde::{Deserialize, Serialize};
 pub mod current_user {
 
     use super::*;
-    use crate::api::db::global::PlayerGameLog;
+    use crate::api::{
+        db::global::PlayerGameLog,
+        types::{UserRole, UserStatus},
+    };
 
     /// Structure contenant des données sur l'utilisateur
     /// pour être afficher sur le page Mon Compte de l'utilisateur
@@ -15,12 +18,44 @@ pub mod current_user {
         pub username: String,
         pub member_since: u64,
         pub elo: u64,
-        pub best_elo: u64,     // maintenu par un trigger PostgreSQL
+        pub best_elo: u64, // maintenu par un trigger PostgreSQL
         pub games_played: u64,
         pub games_won: u64,
         pub games_lost: u64,   // colonne générée par PostgreSQL
         pub win_ratio: f32,    // colonne générée par PostgreSQL
         pub rank: Option<u64>, // calculé à la volée
+    }
+
+    /// Informations d'accès utilisées par la navigation et les gardes de route.
+    #[derive(Serialize, Deserialize, Clone, Default, PartialEq)]
+    pub struct AccessInfo {
+        pub username: String,
+        pub role: UserRole,
+        pub status: UserStatus,
+        pub is_admin: bool,
+    }
+
+    /// Récupère le rôle effectif de l'utilisateur courant.
+    #[server]
+    pub async fn get_access() -> Result<AccessInfo, ServerFnError> {
+        use crate::server::{access, auth, db};
+        let Some(session_record) = auth::session::get_from_extension() else {
+            return Err(ServerFnError::new("User is not authenticated"));
+        };
+        let user = db::get_user(session_record.user_id)
+            .await?
+            .ok_or_else(|| ServerFnError::new("Utilisateur introuvable"))?;
+        let is_admin = access::is_admin(&user);
+        Ok(AccessInfo {
+            username: user.username,
+            role: if is_admin {
+                UserRole::Admin
+            } else {
+                UserRole::User
+            },
+            status: user.status,
+            is_admin,
+        })
     }
 
     /// Récupère le nom d'utilisateur de l'utilisateur dans la database
@@ -176,11 +211,20 @@ pub mod global {
     /// Enregistre une partie dans la database
     #[server]
     pub async fn register_game(game: GameSendItem) -> Result<Result<(), String>, ServerFnError> {
-        use crate::server::{auth, db};
+        use crate::server::{audit, auth, db};
         let Some(session_record) = auth::session::get_from_extension() else {
             return Err(ServerFnError::new("User is not authenticated"));
         };
 
-        db::register_game(session_record.user_id, game).await
+        let result = db::register_game(session_record.user_id, game).await?;
+        if result.is_ok() {
+            audit::log_activity_best_effort(
+                session_record.user_id,
+                "game_recorded",
+                "Partie enregistrée".to_string(),
+            )
+            .await;
+        }
+        Ok(result)
     }
 }

@@ -1,5 +1,7 @@
 use sea_orm::entity::prelude::*;
 
+use crate::api::types::{UserRole, UserStatus};
+
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
 #[sea_orm(table_name = "users")]
 pub struct Model {
@@ -14,6 +16,12 @@ pub struct Model {
     pub best_elo: i64,
     pub games_played: i64,
     pub games_won: i64,
+    pub role: UserRole,
+    pub status: UserStatus,
+    pub suspended_until: Option<i64>,
+    pub status_reason: Option<String>,
+    pub moderated_at: Option<i64>,
+    pub moderated_by: Option<Uuid>,
 }
 
 impl Model {

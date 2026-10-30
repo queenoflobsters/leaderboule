@@ -1,7 +1,8 @@
 use crate::{
+    api::types::{UserRole, UserStatus},
     client::route::Route,
     server::{
-        db, elo,
+        access, audit, db, elo,
         entities::{session as session_entity, user, user_cred},
         helloasso, utils,
     },
@@ -110,8 +111,26 @@ pub mod session {
             .flatten()?;
 
         if session_match.expires_at > utils::current_time_secs() as i64 {
-            debug!("AUTH : found session_record");
-            Some(session_match)
+            // Une session ne doit pas survivre à un bannissement ou à une
+            // suspension. Une suspension expirée est réactivée au passage.
+            let active_user = match db::get_user(session_match.user_id).await {
+                Ok(Some(user)) => match access::ensure_env_admin_role(user).await {
+                    Ok(user) => access::refresh_sanction_state(user).await.ok().flatten(),
+                    Err(_) => None,
+                },
+                _ => None,
+            };
+
+            if active_user.is_some() {
+                debug!("AUTH : found valid session_record");
+                Some(session_match)
+            } else {
+                debug!("AUTH : session belongs to a blocked account, removing it");
+                let _ = session_entity::Entity::delete_by_id(session_match.id)
+                    .exec(db::get().await)
+                    .await;
+                None
+            }
         } else {
             debug!("AUTH : session_record is expired");
             let _ = session_entity::Entity::delete_by_id(session_match.id)
@@ -203,35 +222,79 @@ pub mod middleware {
     /// - Une navigation vers une page privée non authentifiée redirige vers le
     ///   login. Les appels d'API passent et décideront eux-mêmes quoi faire.
     pub async fn server_auth_guard(mut req: Request, next: Next) -> Response {
-        let path = req.uri().path();
+        let path = req.uri().path().to_string();
         debug!("GUARD : request to path : {}", path);
 
-        if is_static_asset(path) {
+        if is_static_asset(&path) {
             debug!("GUARD : static asset, forwarding request");
             return next.run(req).await;
         }
 
         debug!("GUARD : checking for auth");
-        if let Some(session_token) = session::parse_token_from_cookie(req.headers()) {
-            debug!(
-                "GUARD : session_token found in cookie : {:?}",
-                &session_token
-            );
-            if let Some(session_record) = session::get_from_db(&session_token).await {
-                debug!("GUARD : session_record found in db, inserting axum extension and forwarding request");
-                req.extensions_mut().insert(session_record);
-                return next.run(req).await;
+        let session_record =
+            if let Some(session_token) = session::parse_token_from_cookie(req.headers()) {
+                debug!(
+                    "GUARD : session_token found in cookie : {:?}",
+                    &session_token
+                );
+                session::get_from_db(&session_token).await
+            } else {
+                None
+            };
+
+        if let Some(session_record) = &session_record {
+            debug!("GUARD : session_record found in db, inserting axum extension");
+            req.extensions_mut().insert(session_record.clone());
+        }
+
+        // Deuxième barrière, au niveau HTTP, pour toutes les server functions
+        // de modération. Les fonctions elles-mêmes revérifient le rôle et
+        // renvoient aussi un 403, mais ce garde couvre les appels directs.
+        if path.starts_with("/api/moderation") {
+            let allowed = match &session_record {
+                Some(record) => access::is_admin_user_id(record.user_id)
+                    .await
+                    .unwrap_or(false),
+                None => false,
+            };
+            if !allowed {
+                debug!("GUARD : moderation API call refused for non-admin");
+                return forbidden_response();
             }
         }
 
         let is_nav = is_page_navigation(req.headers(), req.method());
-        let route = Route::from_str(path).unwrap_or(Route::PageNotFound { segments: vec![] });
+        let route = Route::from_str(&path).unwrap_or(Route::PageNotFound { segments: vec![] });
+
         if is_nav && !route.is_public() {
-            return Redirect::to(&Route::Login.to_string()).into_response();
+            let Some(record) = &session_record else {
+                return Redirect::to(&Route::Login.to_string()).into_response();
+            };
+
+            if route.is_admin_only() {
+                let allowed = access::is_admin_user_id(record.user_id)
+                    .await
+                    .unwrap_or(false);
+                if !allowed {
+                    debug!("GUARD : moderation page refused for non-admin");
+                    return Redirect::to(&Route::Leaderboard.to_string()).into_response();
+                }
+            }
         }
 
-        debug!("GUARD : public route, or api call, forwarding request");
+        debug!("GUARD : forwarding request");
         next.run(req).await
+    }
+
+    /// Réponse JSON minimale renvoyée aux appels d'API de modération refusés.
+    fn forbidden_response() -> Response {
+        Response::builder()
+            .status(axum::http::StatusCode::FORBIDDEN)
+            .header(axum::http::header::CONTENT_TYPE, "application/json")
+            .body(axum::body::Body::from(
+                r#"{"error":"Accès réservé aux administrateurs"}"#,
+            ))
+            .unwrap_or_else(|_| Response::new(axum::body::Body::empty()))
     }
 
     /// Vérifie si la requête correspond à un asset public.
@@ -346,6 +409,11 @@ pub mod account {
         };
 
         let user_id = Uuid::now_v7();
+        let role = if access::is_env_admin(&email) {
+            UserRole::Admin
+        } else {
+            UserRole::User
+        };
         user::ActiveModel {
             id: Set(user_id),
             email: Set(email),
@@ -355,6 +423,12 @@ pub mod account {
             best_elo: Set(elo::DEFAULT_ELO as i64),
             games_played: Set(0),
             games_won: Set(0),
+            role: Set(role),
+            status: Set(UserStatus::Active),
+            suspended_until: Set(None),
+            status_reason: Set(None),
+            moderated_at: Set(None),
+            moderated_by: Set(None),
         }
         .insert(db::get().await)
         .await
@@ -404,11 +478,18 @@ pub mod account {
             user_id, username_trimmed
         );
 
+        audit::log_activity_best_effort(
+            user_id,
+            "username_changed",
+            format!("Nom d'utilisateur changé en « {username_trimmed} »"),
+        )
+        .await;
+
         Ok(Ok(()))
     }
 
     /// Vérifie si le nom d'utilisateur est conforme.
-    async fn check_username_validity(
+    pub(crate) async fn check_username_validity(
         username: &str,
         user_id: Uuid,
     ) -> Result<Result<(), String>, ServerFnError> {
@@ -558,6 +639,13 @@ pub mod credentials {
                 "Cet utilisateur n'a aucun mot de passe enregistré. Absolument anormal",
             ));
         }
+
+        audit::log_activity_best_effort(
+            user_id,
+            "password_changed",
+            "Mot de passe modifié".to_string(),
+        )
+        .await;
 
         Ok(Ok(()))
     }

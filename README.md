@@ -20,10 +20,17 @@ HELLOASSO_CLIENT_ID="..."
 HELLOASSO_CLIENT_SECRET="..."
 HELLOASSO_SLUG="petanqu-insa-club"
 HELLOASSO_FORM_SLUG="adhesion-2025-2026-petanqu-insa-club"
+# Emails séparés par des virgules, toujours administrateurs
+ADMIN_EMAILS="admin1@example.com,admin2@example.com"
 ```
 
-Le schéma est créé et migré automatiquement au démarrage du serveur
-(voir `src/init.sql` et `src/server/migration.rs`).
+Le schéma est créé automatiquement au premier accès à la base
+(voir `src/init.sql` et `src/server/db.rs`).
+
+Les emails listés dans `ADMIN_EMAILS` sont forcés au rôle `admin` : ils ne
+peuvent pas être rétrogradés depuis l'interface, même par un autre
+administrateur. En développement, relancez le serveur après modification de
+cette variable.
 
 ### Développement
 
@@ -93,6 +100,14 @@ DATABASE_URL="postgres://leaderboule:leaderboule@127.0.0.1:5433/leaderboule" dx 
   - [x] Mot de passe (plutôt sécurisé)
   - [x] Sessions enregistrées sur le navigateur
   - [x] Intégration avec Helloasso
+- [x] Modération et administration
+  - [x] Rôles `user` / `admin` (admins `.env` toujours admins)
+  - [x] Recherche et inspection des comptes
+  - [x] Édition de l'Elo et des compteurs avec validation
+  - [x] Changement forcé / assainissement du nom d'utilisateur
+  - [x] Suspension, bannissement, promotion / rétrogradation
+  - [x] Journal d'audit et historique d'activité
+  - [x] Correction et suppression de parties avec recalcul des effets
 
 ## Restant à faire
 - [ ] Système de trophés

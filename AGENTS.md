@@ -39,10 +39,13 @@ dx build --web --release
 ## Database
 
 - `DATABASE_URL` must be a full `postgres://user:password@host:port/database` URL.
-- Schema lives in `src/init.sql`; it is embedded with `include_str!` and applied by the single migration in `src/server/migration.rs`.
-- Migrations and the connection are lazy: `server/db.rs::get()` runs on the first DB access, not at server boot.
-- Editing `src/init.sql` does **not** update an existing database, because the migration is already recorded. For dev, reset the Postgres volume (for example `docker compose down -v`) or add a new migration.
+- Schema lives in `src/init.sql`; it is embedded with `include_str!` in `server/db.rs` and executed only when the `users` table is absent.
+- There is no migration system: the database is created from scratch, and restarting the app does not replay `init.sql`.
+- The connection and schema bootstrap are lazy: `server/db.rs::get()` runs on the first DB access, not at server boot.
+- Editing `src/init.sql` does **not** update an existing database. For dev, reset the Postgres volume (for example `docker compose down -v`).
 - `games_lost` and `win_ratio` are PostgreSQL generated columns; `best_elo` is maintained by a trigger. Do not write those columns through SeaORM.
+- Moderation adds `users.role` / `users.status` and the `activity_logs` / `audit_logs` tables. `UserRole` and `UserStatus` are shared enums mapped to text columns by SeaORM.
+- `ADMIN_EMAILS` is a comma-separated list of emails that are always admin (case-insensitive). They are synced to `role = 'admin'` at DB init and on login, and the moderation code refuses to demote or sanction them.
 - Helloasso reads `HELLOASSO_CLIENT_ID`, `HELLOASSO_CLIENT_SECRET`, `HELLOASSO_SLUG`, and `HELLOASSO_FORM_SLUG` with `unwrap()`; missing values panic on the first Helloasso login. The compose files currently forward only the client id/secret, so add the two slug variables when testing containerized login.
 
 ## Frontend / CSS

@@ -31,6 +31,7 @@ services:
       - DATABASE_URL=postgres://${POSTGRES_USER:-leaderboule}:${POSTGRES_PASSWORD:-leaderboule}@postgres:5432/${POSTGRES_DB:-leaderboule}
       - HELLOASSO_CLIENT_ID=${HELLOASSO_CLIENT_ID}
       - HELLOASSO_CLIENT_SECRET=${HELLOASSO_CLIENT_SECRET}
+      - ADMIN_EMAILS=${ADMIN_EMAILS}
     ports:
       - "${APP_PORT:-8080}:8080"
     restart: unless-stopped
