@@ -18,6 +18,8 @@ POSTGRES_DB="leaderboule"
 # Pour l'intégration avec Helloasso
 HELLOASSO_CLIENT_ID="..."
 HELLOASSO_CLIENT_SECRET="..."
+HELLOASSO_SLUG="petanqu-insa-club"
+HELLOASSO_FORM_SLUG="adhesion-2025-2026-petanqu-insa-club"
 ```
 
 Le schéma est créé et migré automatiquement au démarrage du serveur
