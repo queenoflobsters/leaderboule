@@ -50,11 +50,16 @@ Les données sont conservées dans le volume Docker `postgres_data`.
 ```bash
 docker compose up --build
 # ou
-podman-compose up --build
+podman-compose up --build --force-recreate
 ```
 
 L'application est disponible sur `http://localhost:8080` et PostgreSQL sur
 `localhost:5432`.
+
+> `podman-compose` ne recrée pas un conteneur quand seule l'image est
+> reconstruite : il compare la configuration du service, pas l'identifiant de
+> l'image. Utilisez donc `--force-recreate` après une reconstruction, ou
+> `podman-compose down` suivi de `podman-compose up --build`.
 
 Les ports exposés sur la machine hôte sont configurables, ce qui est pratique
 si `dx serve` ou une autre instance PostgreSQL tourne déjà :
