@@ -3,7 +3,6 @@
 .env
 README.md
 src_txt/
-boules.db/
 /target
 /temp
 /dist

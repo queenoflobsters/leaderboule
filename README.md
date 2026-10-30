@@ -26,12 +26,14 @@ Le schéma est créé et migré automatiquement au démarrage du serveur
 ### Développement
 
 - Installe le langage [Rust](https://rust-lang.org/tools/install/)
-- Installe [Docker](https://docs.docker.com/engine/install/)
+- Installe [Docker](https://docs.docker.com/engine/install/) ou Podman
 - Installe [Dioxus](https://dioxuslabs.com/learn/0.7/getting_started/)
 
 - Lance PostgreSQL :
 ```bash
 docker compose up -d postgres
+# ou, avec Podman
+podman-compose up -d postgres
 ```
 
 - Lance l'application
@@ -43,14 +45,29 @@ dx serve --release # Pour maximum de perfs
 
 Les données sont conservées dans le volume Docker `postgres_data`.
 
-### Avec Docker
+### Avec Docker / Podman
 
 ```bash
 docker compose up --build
+# ou
+podman-compose up --build
 ```
 
 L'application est disponible sur `http://localhost:8080` et PostgreSQL sur
 `localhost:5432`.
+
+Les ports exposés sur la machine hôte sont configurables, ce qui est pratique
+si `dx serve` ou une autre instance PostgreSQL tourne déjà :
+
+```bash
+APP_PORT=8081 POSTGRES_PORT=5433 podman-compose up --build
+```
+
+Il faut alors adapter `DATABASE_URL` pour `dx serve` :
+
+```bash
+DATABASE_URL="postgres://leaderboule:leaderboule@127.0.0.1:5433/leaderboule" dx serve
+```
 
 ## Fonctionnalités
 - [x] Documentation

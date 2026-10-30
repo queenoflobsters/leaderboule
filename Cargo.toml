@@ -40,10 +40,12 @@ web = ["dioxus/web"]
 server = ["dioxus/server"]
 
 [profile.release]
-opt-level = "z" 
-lto = true       
+opt-level = "z"
+lto = true
 codegen-units = 1
-panic = "abort"  
-strip = true     
+panic = "abort"
+# `dx bundle` runs wasm-bindgen after rustc: `strip = true` removes the
+# metadata wasm-bindgen needs on recent LLVM versions and breaks the web build.
+strip = "debuginfo"
 
 
